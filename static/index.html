@@ -177,7 +177,7 @@
         try {
           // Fetch directly from the backend API
           const resp = await fetch(
-            `/api/v1/book?symbol=${currentSymbol}&limit=100`,
+            `https://crypto-order-book-hnt1.onrender.com/api/v1/book?symbol=${currentSymbol}&limit=100`,
           );
 
           if (!resp.ok) throw new Error("API Error: " + resp.status);
