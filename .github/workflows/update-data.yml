@@ -1,0 +1,36 @@
+name: Update order book data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Generate snapshot
+        run: go run . --dir docs --file data.json --symbol BTC-USDT --limit 100
+
+      - name: Commit updated snapshot
+        run: |
+          if git status --porcelain | grep -q "docs/data.json"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add docs/data.json
+            git commit -m "Update order book snapshot"
+            git push
+          else
+            echo "No changes to commit."
+          fi
