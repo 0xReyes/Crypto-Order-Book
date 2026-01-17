@@ -62,7 +62,7 @@
                 id="status-indicator"
                 class="w-2 h-2 rounded-full bg-gray-500"
               ></span>
-              <span id="status-text">Initializing...</span>
+              <span id="status-text">Connecting...</span>
             </div>
           </div>
         </div>
@@ -139,7 +139,7 @@
             >
               <tr>
                 <td colspan="5" class="p-8 text-center text-gray-500">
-                  Select a symbol to load data...
+                  Loading data...
                 </td>
               </tr>
             </tbody>
@@ -151,14 +151,13 @@
     <script>
       let chartInstance = null;
 
-      // 1. Get symbol from URL or default to BTC-USDT
+      // Get symbol from URL or default to BTC-USDT
       const urlParams = new URLSearchParams(window.location.search);
       const currentSymbol = urlParams.get("symbol") || "BTC-USDT";
 
-      // Set dropdown to current symbol
+      // Update UI based on symbol
       const selector = document.getElementById("symbol-select");
       if (![...selector.options].some((o) => o.value === currentSymbol)) {
-        // Add custom option if it's not in the list
         const opt = document.createElement("option");
         opt.value = currentSymbol;
         opt.text = currentSymbol;
@@ -173,50 +172,32 @@
       }
 
       async function fetchData() {
-        updateStatus(
-          "Checking Manifest...",
-          "bg-yellow-500",
-          "text-yellow-500",
-        );
+        updateStatus("Fetching API...", "bg-blue-500", "text-blue-500");
 
         try {
-          // 1. Fetch the Manifest for this specific symbol
-          // e.g., manifest_ETH-USDT.json
-          const manifestUrl = `manifest_${currentSymbol}.json?t=${Date.now()}`;
-          const manifestResp = await fetch(manifestUrl);
-
-          if (!manifestResp.ok) {
-            throw new Error(`No data found for ${currentSymbol}`);
-          }
-
-          const manifest = await manifestResp.json();
-
-          // 2. Fetch the actual data file indicated by the manifest
-          updateStatus("Loading Data...", "bg-blue-500", "text-blue-500");
-          const dataResp = await fetch(
-            `${manifest.latest_file}?t=${Date.now()}`,
+          // Fetch directly from the backend API
+          const resp = await fetch(
+            `/api/v1/book?symbol=${currentSymbol}&limit=100`,
           );
 
-          if (!dataResp.ok) throw new Error("Data file missing");
+          if (!resp.ok) throw new Error("API Error: " + resp.status);
 
-          const data = await dataResp.json();
+          const data = await resp.json();
 
           updateStatus(
-            "Connected",
+            "Live Connected",
             "bg-lcw-green shadow-[0_0_10px_#00d092]",
             "text-lcw-green",
           );
 
           const date = new Date(data.timestamp);
           document.getElementById("last-updated").innerText =
-            `Generated: ${date.toLocaleString()}`;
+            `Updated: ${date.toLocaleTimeString()}`;
 
           processAndRender(data);
         } catch (error) {
           console.error(error);
-          updateStatus(`Error: ${error.message}`, "bg-red-500", "text-red-500");
-          document.getElementById("markets-table-body").innerHTML =
-            `<tr><td colspan="5" class="p-8 text-center text-red-400">Could not load data for ${currentSymbol}.<br>Has the generator run for this coin yet?</td></tr>`;
+          updateStatus("Connection Lost", "bg-red-500", "text-red-500");
         }
       }
 
@@ -302,6 +283,7 @@
             responsive: true,
             maintainAspectRatio: false,
             interaction: { intersect: false, mode: "index" },
+            animation: false, // Disable animation for faster updates
             scales: {
               x: {
                 type: "linear",
@@ -355,11 +337,8 @@
 
       function updateGlobalStats(results) {
         const valid = results.filter((r) => !r.error && r.spread);
-        if (valid.length === 0) {
-          document.getElementById("global-price").innerText = "---";
-          document.getElementById("global-spread").innerText = "---";
-          return;
-        }
+        if (valid.length === 0) return;
+
         const avgPrice =
           valid.reduce((acc, curr) => acc + curr.spread.mid, 0) / valid.length;
         document.getElementById("global-price").innerText =
@@ -380,6 +359,8 @@
       }
 
       fetchData();
+      // Refresh every 5 seconds
+      setInterval(fetchData, 5000);
     </script>
   </body>
 </html>
