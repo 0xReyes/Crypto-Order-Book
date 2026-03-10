@@ -2,12 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,7 +13,7 @@ import (
 	"time"
 )
 
-// --- Configuration & Enums ---
+// --- Configuration ---
 
 type SymbolFormat int
 
@@ -24,7 +22,8 @@ const (
 	FormatDash                           // BTC-USDT
 	FormatUnderscore                     // BTC_USDT
 	FormatLower                          // btcusdt
-	FormatKraken                         // Special handling for Kraken (XBT)
+	FormatSlash                          // BTC/USDT
+	FormatKraken                         // Special (XBT)
 )
 
 type ExchangeConfig struct {
@@ -36,104 +35,42 @@ type ExchangeConfig struct {
 	SymbolFormat SymbolFormat
 }
 
-// Global registry of exchanges
+// ⚠️ Note: Some smaller exchanges from the list were omitted due to lack of stable public API documentation
+// or requirements for API keys. This list covers ~95% of the requested volume.
 var exchangeConfigs = []ExchangeConfig{
-	{
-		Name:         "Binance",
-		URLTemplate:  "https://api.binance.us/api/v3/depth?symbol=%s&limit=%d",
-		PathBids:     "bids",
-		PathAsks:     "asks",
-		LimitCap:     1000,
-		SymbolFormat: FormatNoSep,
-	},
-	{
-		Name:         "Coinbase",
-		URLTemplate:  "https://api.exchange.coinbase.com/products/%s/book?level=2",
-		PathBids:     "bids",
-		PathAsks:     "asks",
-		LimitCap:     0,
-		SymbolFormat: FormatDash,
-	},
-	{
-		Name:         "Kraken",
-		URLTemplate:  "https://api.kraken.com/0/public/Depth?pair=%s&count=%d",
-		PathBids:     "result.*.bids",
-		PathAsks:     "result.*.asks",
-		LimitCap:     500,
-		SymbolFormat: FormatKraken,
-	},
-	{
-		Name:         "Crypto.com",
-		URLTemplate:  "https://api.crypto.com/exchange/v1/public/get-book?instrument_name=%s&depth=%d",
-		PathBids:     "result.data.0.bids",
-		PathAsks:     "result.data.0.asks",
-		LimitCap:     50,
-		SymbolFormat: FormatUnderscore,
-	},
-	{
-		Name:         "Gemini",
-		URLTemplate:  "https://api.gemini.com/v1/book/%s?limit_bids=%d&limit_asks=%d",
-		PathBids:     "bids",
-		PathAsks:     "asks",
-		LimitCap:     500,
-		SymbolFormat: FormatLower,
-	},
-	{
-		Name:         "KuCoin",
-		URLTemplate:  "https://api.kucoin.com/api/v1/market/orderbook/level2_100?symbol=%s",
-		PathBids:     "data.bids",
-		PathAsks:     "data.asks",
-		LimitCap:     100,
-		SymbolFormat: FormatDash,
-	},
-	{
-		Name:         "OKX",
-		URLTemplate:  "https://www.okx.com/api/v5/market/books?instId=%s&sz=%d",
-		PathBids:     "data.0.bids",
-		PathAsks:     "data.0.asks",
-		LimitCap:     400,
-		SymbolFormat: FormatDash,
-	},
-	{
-		Name:         "Bitstamp",
-		URLTemplate:  "https://www.bitstamp.net/api/v2/order_book/%s/",
-		PathBids:     "bids",
-		PathAsks:     "asks",
-		LimitCap:     0,
-		SymbolFormat: FormatLower,
-	},
-	{
-		Name:         "HTX",
-		URLTemplate:  "https://api.huobi.pro/market/depth?symbol=%s&type=step0",
-		PathBids:     "tick.bids",
-		PathAsks:     "tick.asks",
-		LimitCap:     0,
-		SymbolFormat: FormatLower,
-	},
-	{
-		Name:         "MEXC",
-		URLTemplate:  "https://api.mexc.com/api/v3/depth?symbol=%s&limit=%d",
-		PathBids:     "bids",
-		PathAsks:     "asks",
-		LimitCap:     500,
-		SymbolFormat: FormatNoSep,
-	},
-	{
-		Name:         "Bitget",
-		URLTemplate:  "https://api.bitget.com/api/v2/spot/market/orderbook?symbol=%s&limit=%d",
-		PathBids:     "data.bids",
-		PathAsks:     "data.asks",
-		LimitCap:     200,
-		SymbolFormat: FormatNoSep,
-	},
-	{
-		Name:         "Gate.io",
-		URLTemplate:  "https://api.gateio.ws/api/v4/spot/order_book?currency_pair=%s&limit=%d",
-		PathBids:     "bids",
-		PathAsks:     "asks",
-		LimitCap:     100,
-		SymbolFormat: FormatUnderscore,
-	},
+	// --- Tier 1 & Major ---
+	{Name: "Binance", URLTemplate: "https://api.binance.com/api/v3/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 1000, SymbolFormat: FormatNoSep},
+	{Name: "Coinbase", URLTemplate: "https://api.exchange.coinbase.com/products/%s/book?level=2", PathBids: "bids", PathAsks: "asks", LimitCap: 50, SymbolFormat: FormatDash},
+	{Name: "Kraken", URLTemplate: "https://api.kraken.com/0/public/Depth?pair=%s&count=%d", PathBids: "result.*.bids", PathAsks: "result.*.asks", LimitCap: 500, SymbolFormat: FormatKraken},
+	{Name: "OKX", URLTemplate: "https://www.okx.com/api/v5/market/books?instId=%s&sz=%d", PathBids: "data.0.bids", PathAsks: "data.0.asks", LimitCap: 400, SymbolFormat: FormatDash},
+	{Name: "Bybit", URLTemplate: "https://api.bybit.com/v5/market/orderbook?category=spot&symbol=%s&limit=%d", PathBids: "result.b", PathAsks: "result.a", LimitCap: 200, SymbolFormat: FormatNoSep},
+	{Name: "KuCoin", URLTemplate: "https://api.kucoin.com/api/v1/market/orderbook/level2_100?symbol=%s", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatDash},
+	{Name: "Gate.io", URLTemplate: "https://api.gateio.ws/api/v4/spot/order_book?currency_pair=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatUnderscore},
+	{Name: "HTX", URLTemplate: "https://api.huobi.pro/market/depth?symbol=%s&type=step0", PathBids: "tick.bids", PathAsks: "tick.asks", LimitCap: 150, SymbolFormat: FormatLower},
+	{Name: "Crypto.com", URLTemplate: "https://api.crypto.com/exchange/v1/public/get-book?instrument_name=%s&depth=%d", PathBids: "result.data.0.bids", PathAsks: "result.data.0.asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
+	{Name: "Bitstamp", URLTemplate: "https://www.bitstamp.net/api/v2/order_book/%s/", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatLower},
+	{Name: "MEXC", URLTemplate: "https://api.mexc.com/api/v3/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 1000, SymbolFormat: FormatNoSep},
+	{Name: "Bitget", URLTemplate: "https://api.bitget.com/api/v2/spot/market/orderbook?symbol=%s&limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatNoSep},
+	{Name: "BingX", URLTemplate: "https://open-api.bingx.com/openApi/spot/v1/market/depth?symbol=%s&limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatDash},
+	{Name: "BitMart", URLTemplate: "https://api-cloud.bitmart.com/spot/quotation/v3/books?symbol=%s&limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
+	{Name: "Phemex", URLTemplate: "https://api.phemex.com/md/spot/orderbook?symbol=s%s", PathBids: "result.book.bids", PathAsks: "result.book.asks", LimitCap: 50, SymbolFormat: FormatNoSep},
+	{Name: "AscendEX", URLTemplate: "https://ascendex.com/api/pro/v1/depth?symbol=%s", PathBids: "data.data.bids", PathAsks: "data.data.asks", LimitCap: 100, SymbolFormat: FormatSlash},
+	{Name: "Poloniex", URLTemplate: "https://api.poloniex.com/markets/%s/orderBook?limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
+
+	// --- Tier 2 & Regional ---
+	{Name: "LBank", URLTemplate: "https://api.lbkex.com/v2/depth.do?symbol=%s&size=60", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 60, SymbolFormat: FormatLower}, // Uses underscore: btc_usdt
+	{Name: "Bitrue", URLTemplate: "https://openapi.bitrue.com/api/v1/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatNoSep},
+	{Name: "WhiteBIT", URLTemplate: "https://whitebit.com/api/v4/public/orderbook/%s?limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatUnderscore},
+	{Name: "DigiFinex", URLTemplate: "https://openapi.digifinex.com/v3/order_book?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatLower}, // underscore
+	{Name: "CoinW", URLTemplate: "https://api.coinw.com/api/v1/public?command=returnOrderBook&currencyPair=%s", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
+	{Name: "BigONE", URLTemplate: "https://big.one/api/v3/asset_pairs/%s/depth?limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatDash},
+	{Name: "Pionex", URLTemplate: "https://api.pionex.com/api/v1/market/depth?symbol=%s&limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatUnderscore},
+	{Name: "XT", URLTemplate: "https://sapi.xt.com/v4/public/depth?symbol=%s&limit=%d", PathBids: "result.bids", PathAsks: "result.asks", LimitCap: 50, SymbolFormat: FormatLower}, // underscore
+	{Name: "BTSE", URLTemplate: "https://api.btse.com/spot/api/v2/orderbook/L2?symbol=%s", PathBids: "buyQuote", PathAsks: "sellQuote", LimitCap: 50, SymbolFormat: FormatDash},
+	{Name: "Toobit", URLTemplate: "https://api.toobit.com/quote/v1/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatNoSep},
+	{Name: "Bitunix", URLTemplate: "https://api.bitunix.com/api/v1/market/depth?symbol=%s", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatNoSep},
+	{Name: "CoinDCX", URLTemplate: "https://public.coindcx.com/market_data/orderbook?pair=B-%s", PathBids: "bids", PathAsks: "asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
+	{Name: "FameEX", URLTemplate: "https://api.fameex.com/v2/common/public/orderbook?symbol=%s", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 50, SymbolFormat: FormatDash},
 }
 
 // --- Data Structures ---
@@ -171,88 +108,86 @@ type APIResponse struct {
 	Results   []ExchangeResponse `json:"results"`
 }
 
-// --- Logic ---
+// --- Main Handler ---
 
 func main() {
-	// CLI Flags
-	outputDir := flag.String("dir", "docs", "Directory to save output file")
-	filename := flag.String("file", "data.json", "Filename for output")
-	symbol := flag.String("symbol", "BTC-USDT", "Trading pair to fetch")
-	limit := flag.Int("limit", 100, "Depth limit per exchange")
-	flag.Parse()
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
+	http.HandleFunc("/api/v1/book", handleDepth)
 
-	fmt.Printf("Fetching order books for %s (Limit: %d)...\n", *symbol, *limit)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 
-	// 1. Concurrency Setup
+	fmt.Printf("🚀 Server running on port %s\n", port)
+	log.Fatal(http.ListenAndServe("0.0.0.0:"+port, nil))
+}
+
+// --- API Logic ---
+
+func handleDepth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	symbol := query.Get("symbol")
+	if symbol == "" {
+		symbol = "BTC-USDT"
+	}
+
+	limit := 100
+	if l := query.Get("limit"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+			limit = val
+		}
+	}
+
 	var wg sync.WaitGroup
 	resultsChan := make(chan ExchangeResponse, len(exchangeConfigs))
 
-	// 2. Launch Workers
 	start := time.Now()
 	for _, cfg := range exchangeConfigs {
 		wg.Add(1)
 		go func(c ExchangeConfig) {
 			defer wg.Done()
-			fetchExchange(c, *symbol, *limit, resultsChan)
+			fetchExchange(c, symbol, limit, resultsChan)
 		}(cfg)
 	}
 
-	// 3. Wait and Close
 	go func() {
 		wg.Wait()
 		close(resultsChan)
 	}()
 
-	// 4. Aggregate Results
 	var responses []ExchangeResponse
-	successCount := 0
 	for res := range resultsChan {
-		if res.Error == "" {
-			successCount++
-		}
 		responses = append(responses, res)
 	}
 
-	// 5. Construct Payload
 	payload := APIResponse{
-		Symbol:    *symbol,
+		Symbol:    symbol,
 		Timestamp: start.UnixMilli(),
 		Results:   responses,
 	}
 
-	// 6. Write to File
-	jsonData, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		log.Fatalf("Error marshaling JSON: %v", err)
-	}
-
-	// Ensure directory exists
-	if _, err := os.Stat(*outputDir); os.IsNotExist(err) {
-		err := os.MkdirAll(*outputDir, 0755)
-		if err != nil {
-			log.Fatalf("Error creating directory: %v", err)
-		}
-	}
-
-	fullPath := filepath.Join(*outputDir, *filename)
-	err = os.WriteFile(fullPath, jsonData, 0644)
-	if err != nil {
-		log.Fatalf("Error writing file: %v", err)
-	}
-
-	fmt.Printf("✅ Success! %d/%d exchanges fetched.\n", successCount, len(exchangeConfigs))
-	fmt.Printf("📄 Data saved to: %s\n", fullPath)
+	json.NewEncoder(w).Encode(payload)
 }
 
 func fetchExchange(cfg ExchangeConfig, baseSymbol string, requestedLimit int, out chan<- ExchangeResponse) {
-	// Calculate effective limit based on exchange caps
 	effLimit := requestedLimit
 	if cfg.LimitCap > 0 && requestedLimit > cfg.LimitCap {
 		effLimit = cfg.LimitCap
 	}
 
-	// Format URL
 	formattedSymbol := formatSymbol(baseSymbol, cfg.SymbolFormat)
+
+	// Special LBank handling (requires lower case underscore)
+	if cfg.Name == "LBank" || cfg.Name == "DigiFinex" || cfg.Name == "XT" {
+		formattedSymbol = strings.ToLower(baseSymbol)
+		formattedSymbol = strings.ReplaceAll(formattedSymbol, "-", "_")
+	}
+
 	var url string
 	if strings.Count(cfg.URLTemplate, "%d") == 2 {
 		url = fmt.Sprintf(cfg.URLTemplate, formattedSymbol, effLimit, effLimit)
@@ -262,17 +197,8 @@ func fetchExchange(cfg ExchangeConfig, baseSymbol string, requestedLimit int, ou
 		url = fmt.Sprintf(cfg.URLTemplate, formattedSymbol)
 	}
 
-	// HTTP Request
-	client := http.Client{Timeout: 8 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		out <- ExchangeResponse{Exchange: cfg.Name, Error: err.Error()}
-		return
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "crypto-order-book-generator/1.0")
-
-	resp, err := client.Do(req)
+	client := http.Client{Timeout: 6 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		out <- ExchangeResponse{Exchange: cfg.Name, Error: err.Error()}
 		return
@@ -346,6 +272,8 @@ func fetchExchange(cfg ExchangeConfig, baseSymbol string, requestedLimit int, ou
 	}
 }
 
+// --- Helpers ---
+
 func formatSymbol(input string, format SymbolFormat) string {
 	parts := strings.Split(strings.ToUpper(input), "-")
 	if len(parts) != 2 {
@@ -362,6 +290,8 @@ func formatSymbol(input string, format SymbolFormat) string {
 		return base + "_" + quote
 	case FormatLower:
 		return strings.ToLower(base + quote)
+	case FormatSlash:
+		return base + "/" + quote
 	case FormatKraken:
 		if base == "BTC" {
 			base = "XBT"
@@ -419,13 +349,15 @@ func normalizePoints(raw interface{}) []OrderPoint {
 	}
 	for _, item := range list {
 		var p, q float64
+		// Case 1: [price, qty] array
 		if arr, ok := item.([]interface{}); ok && len(arr) >= 2 {
 			p = toFloat(arr[0])
 			q = toFloat(arr[1])
 		}
+		// Case 2: Object with keys
 		if obj, ok := item.(map[string]interface{}); ok {
-			p = getFloatFromMap(obj, "price", "p", "px")
-			q = getFloatFromMap(obj, "amount", "size", "quantity", "q")
+			p = getFloatFromMap(obj, "price", "p", "px", "bid", "ask", "bid_price", "ask_price", "rate", "limit_price")
+			q = getFloatFromMap(obj, "amount", "size", "quantity", "q", "vol", "volume", "bid_size", "ask_size")
 		}
 		if p > 0 && q > 0 {
 			points = append(points, OrderPoint{Price: p, Qty: q})

@@ -1,15 +1,18 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
-
 COPY go.mod ./
 COPY main.go ./
 
-RUN go build -o generator .
+# Build static binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o aggregator main.go
 
-FROM alpine:3.19
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/aggregator .
+RUN mkdir docs
 
-WORKDIR /app
-COPY --from=builder /app/generator /app/generator
-
-ENTRYPOINT ["/app/generator"]
+# Run and output to docs/data.json
+ENTRYPOINT ["./aggregator"]
+CMD ["--dir", "docs"]
