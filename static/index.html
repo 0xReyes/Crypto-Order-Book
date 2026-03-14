@@ -8,184 +8,173 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --bg:       #080b0f;
-    --bg2:      #0d1117;
-    --bg3:      #131920;
-    --border:   #1e2730;
-    --bid:      #00e676;
-    --bid-dim:  rgba(0,230,118,0.08);
-    --ask:      #ff3d5a;
-    --ask-dim:  rgba(255,61,90,0.08);
-    --text:     #e8edf2;
-    --muted:    #4a5568;
-    --accent:   #3d8ef0;
-    --gold:     #f0a500;
-    --mono:     'IBM Plex Mono', monospace;
-    --sans:     'Syne', sans-serif;
+    --bg:#080b0f; --bg2:#0d1117; --bg3:#131920; --border:#1e2730;
+    --bid:#00e676; --bid-dim:rgba(0,230,118,0.08); --ask:#ff3d5a;
+    --ask-dim:rgba(255,61,90,0.08); --text:#e8edf2; --muted:#4a5568;
+    --accent:#3d8ef0; --gold:#f0a500;
+    --mono:'IBM Plex Mono',monospace; --sans:'Syne',sans-serif;
   }
-
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; overflow-x: hidden; }
+  html,body { height:100%; background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; overflow-x:hidden; }
 
   /* HEADER */
   header {
-    display: flex; align-items: center; gap: 24px;
-    padding: 14px 24px; border-bottom: 1px solid var(--border);
-    background: var(--bg2); position: sticky; top: 0; z-index: 100;
-    flex-wrap: wrap;
+    display:flex; align-items:center; gap:20px;
+    padding:12px 24px; border-bottom:1px solid var(--border);
+    background:var(--bg2); position:sticky; top:0; z-index:100; flex-wrap:wrap;
   }
-  .logo { font-family: var(--sans); font-weight: 800; font-size: 17px; color: var(--text); letter-spacing: -0.5px; white-space: nowrap; }
-  .logo span { color: var(--accent); }
-
-  .symbol-input-wrap { display: flex; align-items: center; gap: 6px; }
+  .logo { font-family:var(--sans); font-weight:800; font-size:17px; letter-spacing:-0.5px; white-space:nowrap; }
+  .logo span { color:var(--accent); }
+  .symbol-input-wrap { display:flex; align-items:center; gap:6px; }
   .symbol-input {
-    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-    font-family: var(--mono); font-size: 13px; padding: 6px 10px;
-    border-radius: 4px; width: 80px; text-transform: uppercase;
-    outline: none; transition: border-color 0.2s;
+    background:var(--bg3); border:1px solid var(--border); color:var(--text);
+    font-family:var(--mono); font-size:13px; padding:6px 10px;
+    border-radius:4px; width:80px; text-transform:uppercase; outline:none; transition:border-color 0.2s;
   }
-  .symbol-input:focus { border-color: var(--accent); }
-  .quote-sep { color: var(--muted); font-size: 13px; font-weight: 600; }
-  .quote-select {
-    background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
-    font-family: var(--mono); font-size: 12px; padding: 6px 8px;
-    border-radius: 4px; outline: none; cursor: pointer;
-    transition: border-color 0.2s; appearance: none; width: 76px; text-align: center;
-  }
-  .quote-select:focus { border-color: var(--accent); }
+  .symbol-input:focus { border-color:var(--accent); }
   .fetch-btn {
-    background: var(--accent); color: #fff; border: none; cursor: pointer;
-    font-family: var(--mono); font-size: 12px; font-weight: 600;
-    padding: 6px 14px; border-radius: 4px; letter-spacing: 0.5px;
-    transition: opacity 0.15s; white-space: nowrap;
+    background:var(--accent); color:#fff; border:none; cursor:pointer;
+    font-family:var(--mono); font-size:12px; font-weight:600;
+    padding:6px 14px; border-radius:4px; letter-spacing:0.5px; transition:opacity 0.15s; white-space:nowrap;
   }
-  .fetch-btn:hover { opacity: 0.85; }
-  .fetch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .price-hero { display: flex; align-items: baseline; gap: 10px; margin-left: auto; }
-  .price-val { font-family: var(--sans); font-size: 26px; font-weight: 700; letter-spacing: -1px; }
-  .price-label { color: var(--muted); font-size: 11px; }
-
-  .stat-chips { display: flex; gap: 16px; flex-wrap: wrap; }
-  .chip { display: flex; flex-direction: column; gap: 2px; }
-  .chip-label { color: var(--muted); font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; }
-  .chip-val { font-size: 13px; font-weight: 500; }
-  .chip-val.bid { color: var(--bid); }
-  .chip-val.ask { color: var(--ask); }
-  .chip-val.spread { color: var(--gold); }
-
-  .refresh-status { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; white-space: nowrap; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
-  .dot.live { background: var(--bid); box-shadow: 0 0 6px var(--bid); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+  .fetch-btn:hover { opacity:0.85; } .fetch-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .stat-chips { display:flex; gap:16px; flex-wrap:wrap; }
+  .chip { display:flex; flex-direction:column; gap:2px; }
+  .chip-label { color:var(--muted); font-size:10px; letter-spacing:0.8px; text-transform:uppercase; }
+  .chip-val { font-size:13px; font-weight:500; }
+  .chip-val.bid { color:var(--bid); } .chip-val.ask { color:var(--ask); }
+  .chip-val.spread { color:var(--gold); }
+  .price-hero { display:flex; align-items:baseline; gap:10px; margin-left:auto; }
+  .price-val { font-family:var(--sans); font-size:26px; font-weight:700; letter-spacing:-1px; }
+  .price-label { color:var(--muted); font-size:11px; }
+  .refresh-status { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:11px; white-space:nowrap; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  .dot.live { background:var(--bid); box-shadow:0 0 6px var(--bid); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
   /* LAYOUT */
-  .main { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 260px 1fr; gap: 1px; height: calc(100vh - 57px); background: var(--border); }
-  .panel { background: var(--bg2); overflow: hidden; display: flex; flex-direction: column; }
-  .panel-depth { grid-column: 1 / -1; }
-
+  .main { display:grid; grid-template-columns:1fr 1fr; grid-template-rows:280px 1fr; gap:1px; height:calc(100vh - 57px); background:var(--border); }
+  .panel { background:var(--bg2); overflow:hidden; display:flex; flex-direction:column; }
+  .panel-depth { grid-column:1 / -1; }
   .panel-header {
-    padding: 10px 16px; border-bottom: 1px solid var(--border);
-    font-family: var(--sans); font-size: 11px; font-weight: 600;
-    letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
-    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    padding:8px 16px; border-bottom:1px solid var(--border);
+    font-family:var(--sans); font-size:11px; font-weight:600;
+    letter-spacing:1.5px; text-transform:uppercase; color:var(--muted);
+    display:flex; align-items:center; gap:10px; flex-shrink:0; flex-wrap:wrap;
   }
-  .panel-header .badge {
-    font-size: 10px; padding: 1px 6px; border-radius: 3px;
-    font-family: var(--mono); font-weight: 400; letter-spacing: 0;
-  }
-  .badge-bid { background: var(--bid-dim); color: var(--bid); border: 1px solid rgba(0,230,118,0.2); }
-  .badge-ask { background: var(--ask-dim); color: var(--ask); border: 1px solid rgba(255,61,90,0.2); }
+  .badge { font-size:10px; padding:1px 6px; border-radius:3px; font-family:var(--mono); font-weight:400; letter-spacing:0; }
+  .badge-bid { background:var(--bid-dim); color:var(--bid); border:1px solid rgba(0,230,118,0.2); }
+  .badge-ask { background:var(--ask-dim); color:var(--ask); border:1px solid rgba(255,61,90,0.2); }
 
-  /* DEPTH CHART */
-  #depthCanvas { width: 100%; height: 100%; display: block; }
+  /* DEPTH CHART HEADER */
+  .depth-header { padding:8px 16px 6px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; }
+  .depth-header-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .depth-title { font-family:var(--sans); font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
+  .zoom-group { display:flex; gap:4px; margin-left:auto; }
+  .zoom-btn {
+    background:var(--bg3); border:1px solid var(--border); color:var(--muted);
+    font-family:var(--mono); font-size:10px; padding:3px 9px; border-radius:3px;
+    cursor:pointer; transition:all 0.15s; letter-spacing:0.5px;
+  }
+  .zoom-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .zoom-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .depth-summary { display:flex; gap:24px; margin-top:5px; }
+  .depth-side { display:flex; flex-direction:column; gap:1px; }
+  .depth-side-label { font-size:10px; letter-spacing:0.8px; color:var(--muted); }
+  .depth-side-val { font-size:13px; font-weight:600; font-family:var(--mono); }
+  .depth-side-val.bid-val { color:var(--bid); }
+  .depth-side-val.ask-val { color:var(--ask); }
+
+  /* CANVAS */
+  #depthCanvas { width:100%; flex:1; display:block; cursor:crosshair; }
+
+  /* TOOLTIP */
+  #depthTooltip {
+    position:fixed; display:none; pointer-events:none; z-index:200;
+    background:rgba(13,17,23,0.96); border:1px solid var(--border);
+    border-radius:5px; padding:10px 14px; font-size:11px; line-height:1.8;
+    min-width:200px; box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  }
+  .tt-price { font-family:var(--sans); font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; }
+  .tt-row { display:flex; justify-content:space-between; gap:16px; }
+  .tt-label { color:var(--muted); }
+  .tt-bid { color:var(--bid); font-weight:500; }
+  .tt-ask { color:var(--ask); font-weight:500; }
 
   /* ORDER BOOK TABLE */
-  .ob-scroll { overflow-y: auto; flex: 1; }
-  .ob-scroll::-webkit-scrollbar { width: 4px; }
-  .ob-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  table { width: 100%; border-collapse: collapse; }
+  .ob-scroll { overflow-y:auto; flex:1; }
+  .ob-scroll::-webkit-scrollbar { width:4px; }
+  .ob-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  table { width:100%; border-collapse:collapse; }
   thead th {
-    position: sticky; top: 0; background: var(--bg2);
-    padding: 8px 14px; text-align: right; color: var(--muted);
-    font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
-    border-bottom: 1px solid var(--border); font-weight: 400; z-index: 2;
+    position:sticky; top:0; background:var(--bg2);
+    padding:8px 14px; text-align:right; color:var(--muted);
+    font-size:10px; letter-spacing:0.8px; text-transform:uppercase;
+    border-bottom:1px solid var(--border); font-weight:400; z-index:2;
   }
-  thead th:first-child { text-align: left; }
-  tbody tr { transition: background 0.1s; position: relative; }
-  tbody tr:hover { background: rgba(255,255,255,0.03); }
-  td {
-    padding: 4px 14px; text-align: right; font-size: 12px;
-    white-space: nowrap; line-height: 1.7;
-  }
-  td:first-child { text-align: left; }
-
-  .bid-row td.price { color: var(--bid); font-weight: 500; }
-  .ask-row td.price { color: var(--ask); font-weight: 500; }
-  td.size { color: var(--text); }
-  td.cum { color: var(--muted); }
-
-  /* depth bar behind row */
-  .bid-row { background: linear-gradient(to left, var(--bid-dim) var(--depth,0%), transparent var(--depth,0%)); }
-  .ask-row { background: linear-gradient(to right, var(--ask-dim) var(--depth,0%), transparent var(--depth,0%)); }
+  thead th:first-child { text-align:left; }
+  tbody tr { transition:background 0.1s; }
+  tbody tr:hover { background:rgba(255,255,255,0.03); }
+  td { padding:4px 14px; text-align:right; font-size:12px; white-space:nowrap; line-height:1.7; }
+  td:first-child { text-align:left; }
+  .bid-row td.price { color:var(--bid); font-weight:500; }
+  .ask-row td.price { color:var(--ask); font-weight:500; }
+  td.size { color:var(--text); } td.cum { color:var(--muted); }
+  .bid-row { background:linear-gradient(to left, var(--bid-dim) var(--depth,0%), transparent var(--depth,0%)); }
+  .ask-row { background:linear-gradient(to right, var(--ask-dim) var(--depth,0%), transparent var(--depth,0%)); }
 
   /* EXCHANGE PANEL */
-  .ex-grid { display: flex; flex-direction: column; overflow-y: auto; flex: 1; }
-  .ex-grid::-webkit-scrollbar { width: 4px; }
-  .ex-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .ex-grid { display:flex; flex-direction:column; overflow-y:auto; flex:1; }
+  .ex-grid::-webkit-scrollbar { width:4px; }
+  .ex-grid::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
   .ex-row {
-    display: grid; grid-template-columns: 130px 1fr 1fr 80px;
-    align-items: center; padding: 7px 14px; border-bottom: 1px solid rgba(30,39,48,0.6);
-    gap: 8px; transition: background 0.1s; cursor: default;
+    display:grid; grid-template-columns:130px 1fr 1fr 80px;
+    align-items:center; padding:7px 14px; border-bottom:1px solid rgba(30,39,48,0.6);
+    gap:8px; transition:background 0.1s;
   }
-  .ex-row:hover { background: rgba(255,255,255,0.02); }
-  .ex-row.error { opacity: 0.35; }
-  .ex-name { font-weight: 500; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ex-mid { font-size: 12px; color: var(--text); text-align: right; }
-  .ex-spread { font-size: 11px; color: var(--gold); text-align: right; }
-  .ex-levels { font-size: 10px; color: var(--muted); text-align: right; }
-  .ex-err { font-size: 10px; color: var(--ask); opacity: 0.7; grid-column: 2/-1; }
+  .ex-row:hover { background:rgba(255,255,255,0.02); }
+  .ex-row.error { opacity:0.35; }
+  .ex-name { font-weight:500; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ex-mid { font-size:12px; text-align:right; }
+  .ex-spread { font-size:11px; color:var(--gold); text-align:right; }
+  .ex-levels { font-size:10px; color:var(--muted); text-align:right; }
+  .ex-err { font-size:10px; color:var(--ask); opacity:0.7; grid-column:2/-1; }
 
   /* LOADING */
   #loadOverlay {
-    position: fixed; inset: 0; background: var(--bg);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 20px; z-index: 999;
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:20px; z-index:999;
   }
-  .spinner {
-    width: 36px; height: 36px; border: 2px solid var(--border);
-    border-top-color: var(--accent); border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #loadOverlay p { color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+  .spinner { width:36px; height:36px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #loadOverlay p { color:var(--muted); font-size:12px; letter-spacing:1px; }
 
-  /* responsive */
-  @media (max-width: 768px) {
-    .main { grid-template-columns: 1fr; grid-template-rows: 200px auto auto; }
-    .panel-depth { grid-column: 1; }
-    .price-hero { margin-left: 0; }
-    .stat-chips { display: none; }
+  @media (max-width:768px) {
+    .main { grid-template-columns:1fr; grid-template-rows:240px auto auto; }
+    .panel-depth { grid-column:1; }
+    .price-hero { margin-left:0; }
+    .stat-chips { display:none; }
   }
 </style>
 </head>
 <body>
 
-<div id="loadOverlay">
-  <div class="spinner"></div>
-  <p>FETCHING ORDER BOOK</p>
+<div id="loadOverlay"><div class="spinner"></div><p>FETCHING ORDER BOOK</p></div>
+<div id="depthTooltip">
+  <div class="tt-price" id="ttPrice">—</div>
+  <div class="tt-row"><span class="tt-label">Bid Value</span><span class="tt-bid" id="ttBidVal">—</span></div>
+  <div class="tt-row"><span class="tt-label">Bid Total</span><span class="tt-bid" id="ttBidTot">—</span></div>
+  <div class="tt-row"><span class="tt-label">Ask Value</span><span class="tt-ask" id="ttAskVal">—</span></div>
+  <div class="tt-row"><span class="tt-label">Ask Total</span><span class="tt-ask" id="ttAskTot">—</span></div>
 </div>
 
 <header>
   <div class="logo">order<span>book</span></div>
-
   <div class="symbol-input-wrap">
-    <input class="symbol-input" id="symbolInput" value="BTC" placeholder="BTC" spellcheck="false" style="width:80px" />
+    <input class="symbol-input" id="symbolInput" value="BTC" placeholder="BTC" spellcheck="false" />
     <button class="fetch-btn" id="fetchBtn" onclick="load()">FETCH</button>
   </div>
-
   <div class="stat-chips">
     <div class="chip"><span class="chip-label">Best Bid</span><span class="chip-val bid" id="hBid">—</span></div>
     <div class="chip"><span class="chip-label">Best Ask</span><span class="chip-val ask" id="hAsk">—</span></div>
@@ -193,12 +182,10 @@
     <div class="chip"><span class="chip-label">Mid</span><span class="chip-val" id="hMid">—</span></div>
     <div class="chip"><span class="chip-label">Exchanges</span><span class="chip-val" id="hEx">—</span></div>
   </div>
-
   <div class="price-hero">
     <span class="price-val" id="priceVal">—</span>
     <span class="price-label" id="symbolLabel">BTC-USDT</span>
   </div>
-
   <div class="refresh-status">
     <div class="dot" id="liveDot"></div>
     <span id="lastUpdate">—</span>
@@ -208,8 +195,29 @@
 <div class="main">
 
   <!-- Depth Chart -->
-  <div class="panel panel-depth">
-    <div class="panel-header">Depth Chart</div>
+  <div class="panel panel-depth" style="display:flex;flex-direction:column;">
+    <div class="depth-header">
+      <div class="depth-header-top">
+        <span class="depth-title">Depth Chart</span>
+        <div class="depth-summary">
+          <div class="depth-side">
+            <span class="depth-side-label" id="bidPctLabel">BIDS -1%</span>
+            <span class="depth-side-val bid-val" id="bidUSDTotal">—</span>
+          </div>
+          <div class="depth-side">
+            <span class="depth-side-label" id="askPctLabel">ASKS +1%</span>
+            <span class="depth-side-val ask-val" id="askUSDTotal">—</span>
+          </div>
+        </div>
+        <div class="zoom-group">
+          <span style="color:var(--muted);font-size:10px;letter-spacing:0.5px;margin-right:2px;align-self:center;">ZOOM</span>
+          <button class="zoom-btn" data-zoom="0.005" onclick="setZoom(0.005)">0.5%</button>
+          <button class="zoom-btn active" data-zoom="0.01" onclick="setZoom(0.01)">1%</button>
+          <button class="zoom-btn" data-zoom="0.02" onclick="setZoom(0.02)">2%</button>
+          <button class="zoom-btn" data-zoom="0.05" onclick="setZoom(0.05)">5%</button>
+        </div>
+      </div>
+    </div>
     <canvas id="depthCanvas"></canvas>
   </div>
 
@@ -219,10 +227,8 @@
       Bids <span class="badge badge-bid" id="bidCount">0 levels</span>
     </div>
     <div class="ob-scroll">
-      <table>
-        <thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
-        <tbody id="bidsBody"></tbody>
-      </table>
+      <table><thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
+      <tbody id="bidsBody"></tbody></table>
     </div>
   </div>
 
@@ -232,20 +238,17 @@
       Asks <span class="badge badge-ask" id="askCount">0 levels</span>
     </div>
     <div class="ob-scroll">
-      <table>
-        <thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
-        <tbody id="asksBody"></tbody>
-      </table>
+      <table><thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
+      <tbody id="asksBody"></tbody></table>
     </div>
   </div>
 
 </div>
 
-<!-- Exchange breakdown modal-strip via overlay panel — replaced with bottom bar -->
-<div style="background:var(--bg2); border-top:1px solid var(--border); overflow-x:auto; max-height:220px; overflow-y:auto;" id="exPanel">
-  <div style="padding:10px 16px; border-bottom:1px solid var(--border); font-family:var(--sans); font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); display:flex; gap:16px;">
+<div style="background:var(--bg2);border-top:1px solid var(--border);overflow-x:auto;max-height:200px;overflow-y:auto;" id="exPanel">
+  <div style="padding:10px 16px;border-bottom:1px solid var(--border);font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:flex;gap:16px;">
     <span>Exchange Breakdown</span>
-    <span style="margin-left:auto; font-weight:400; color:var(--muted)" id="exSummary"></span>
+    <span style="margin-left:auto;font-weight:400;color:var(--muted)" id="exSummary"></span>
   </div>
   <div class="ex-grid" id="exGrid"></div>
 </div>
@@ -253,278 +256,425 @@
 <script>
 const API = '/api/v1/book';
 let currentData = null;
+let currentZoom = 0.01;
+// Raw bid/ask arrays for re-drawing on zoom change: [[price, qty], ...]
+let _rawBids = [], _rawAsks = [], _mid = 0;
 
-function fmt(n, dec = 2) {
-  if (n == null || isNaN(n)) return '—';
-  return n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+/* ── Formatters ─────────────────────────────────────────── */
+function fmt(n, dec=2) {
+  if (n==null||isNaN(n)) return '—';
+  return n.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
 }
 function fmtQty(n) {
-  if (n >= 1000) return fmt(n, 2);
-  if (n >= 1) return fmt(n, 4);
-  return fmt(n, 6);
+  if (n>=1000) return fmt(n,2);
+  if (n>=1) return fmt(n,4);
+  return fmt(n,6);
 }
-function pct(a, b) { return b ? ((a / b) * 100).toFixed(1) + '%' : '0%'; }
+function fmtUSD(v) {
+  if (v>=1e9) return '$'+(v/1e9).toFixed(2)+'B';
+  if (v>=1e6) return '$'+(v/1e6).toFixed(2)+'M';
+  if (v>=1e3) return '$'+(v/1e3).toFixed(1)+'K';
+  return '$'+v.toFixed(0);
+}
+function pct(a,b) { return b?((a/b)*100).toFixed(1)+'%':'0%'; }
 
+/* ── Zoom control ───────────────────────────────────────── */
+function setZoom(z) {
+  currentZoom = z;
+  document.querySelectorAll('.zoom-btn').forEach(b=>{
+    b.classList.toggle('active', parseFloat(b.dataset.zoom)===z);
+  });
+  const pctStr = (z*100)+'%';
+  document.getElementById('bidPctLabel').textContent = 'BIDS -'+pctStr;
+  document.getElementById('askPctLabel').textContent = 'ASKS +'+pctStr;
+  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid);
+}
+
+/* ── Fetch ──────────────────────────────────────────────── */
 async function load() {
-  const raw = document.getElementById('symbolInput').value.trim().toUpperCase() || 'BTC';
-  // Mirror the backend normalization so the label shows the resolved pair
-  const sym = raw.includes('-') ? raw : raw + '-USDT';
+  const raw = document.getElementById('symbolInput').value.trim().toUpperCase()||'BTC';
+  const sym = raw.includes('-') ? raw : raw+'-USDT';
   document.getElementById('symbolLabel').textContent = sym;
   document.getElementById('fetchBtn').disabled = true;
   document.getElementById('liveDot').className = 'dot';
   document.getElementById('lastUpdate').textContent = 'loading…';
-
   try {
     const r = await fetch(`${API}?symbol=${encodeURIComponent(raw)}&limit=100`);
     const d = await r.json();
     currentData = d;
     render(d, sym);
   } catch(e) {
-    document.getElementById('lastUpdate').textContent = 'error: ' + e.message;
+    document.getElementById('lastUpdate').textContent = 'error: '+e.message;
   } finally {
     document.getElementById('fetchBtn').disabled = false;
   }
 }
 
+/* ── Render ─────────────────────────────────────────────── */
 function render(d, sym) {
   document.getElementById('symbolLabel').textContent = sym;
   document.getElementById('loadOverlay').style.display = 'none';
   document.getElementById('liveDot').className = 'dot live';
   document.getElementById('lastUpdate').textContent = new Date(d.timestamp).toLocaleTimeString();
 
-  // Aggregate all bid/ask levels across exchanges
   const bidMap = new Map(), askMap = new Map();
-  let okCount = 0, errCount = 0;
-  let globalBestBid = 0, globalBestAsk = Infinity;
+  let okCount=0, errCount=0;
+  let globalBestBid=0, globalBestAsk=Infinity;
 
-  // --- Outlier filtering ---
-  // 1. Collect mid prices from all healthy exchanges
-  const validResults = d.results.filter(ex => !ex.error && ex.spread.mid > 0);
-  const mids = validResults.map(ex => ex.spread.mid).sort((a,b) => a - b);
-  const median = mids[Math.floor(mids.length / 2)] || 0;
-  // 2. Accept only exchanges whose mid is within ±20% of the median
+  const validResults = d.results.filter(ex=>!ex.error&&ex.spread.mid>0);
+  const mids = validResults.map(ex=>ex.spread.mid).sort((a,b)=>a-b);
+  const median = mids[Math.floor(mids.length/2)]||0;
   const TOLERANCE = 0.20;
-  const clean = validResults.filter(ex =>
-    median === 0 || Math.abs(ex.spread.mid - median) / median <= TOLERANCE
-  );
+  const clean = validResults.filter(ex=>median===0||Math.abs(ex.spread.mid-median)/median<=TOLERANCE);
+  const filtered = validResults.filter(ex=>median>0&&Math.abs(ex.spread.mid-median)/median>TOLERANCE);
   errCount = d.results.length - clean.length;
-  // Log any exchanges that were filtered out
-  const filtered = validResults.filter(ex =>
-    median > 0 && Math.abs(ex.spread.mid - median) / median > TOLERANCE
-  );
-  if (filtered.length) {
-    console.warn('Outlier exchanges filtered:', filtered.map(e =>
-      `${e.exchange} mid=${e.spread.mid} (${((e.spread.mid/median-1)*100).toFixed(1)}% from median)`
-    ).join(', '));
-  }
 
   for (const ex of clean) {
     okCount++;
-    if (ex.spread.best_bid > globalBestBid) globalBestBid = ex.spread.best_bid;
-    if (ex.spread.best_ask < globalBestAsk) globalBestAsk = ex.spread.best_ask;
-    for (const pt of (ex.data || [])) {
-      if (pt.bidCum != null) {
-        const k = pt.price;
-        bidMap.set(k, (bidMap.get(k) || 0) + pt.qty);
-      } else if (pt.askCum != null) {
-        const k = pt.price;
-        askMap.set(k, (askMap.get(k) || 0) + pt.qty);
-      }
+    if (ex.spread.best_bid>globalBestBid) globalBestBid=ex.spread.best_bid;
+    if (ex.spread.best_ask<globalBestAsk) globalBestAsk=ex.spread.best_ask;
+    for (const pt of (ex.data||[])) {
+      if (pt.bidCum!=null) { const k=pt.price; bidMap.set(k,(bidMap.get(k)||0)+pt.qty); }
+      else if (pt.askCum!=null) { const k=pt.price; askMap.set(k,(askMap.get(k)||0)+pt.qty); }
     }
   }
 
-  // Sort
-  const bids = [...bidMap.entries()].sort((a,b) => b[0]-a[0]).slice(0,100);
-  const asks = [...askMap.entries()].sort((a,b) => a[0]-b[0]).slice(0,100);
+  const bids = [...bidMap.entries()].sort((a,b)=>b[0]-a[0]).slice(0,200);
+  const asks = [...askMap.entries()].sort((a,b)=>a[0]-b[0]).slice(0,200);
 
-  // Header stats
-  const mid = (globalBestBid + globalBestAsk) / 2;
-  const spread = globalBestAsk - globalBestBid;
-  document.getElementById('priceVal').textContent = fmt(mid, 2);
-  document.getElementById('hBid').textContent = fmt(globalBestBid, 2);
-  document.getElementById('hAsk').textContent = fmt(globalBestAsk, 2);
-  document.getElementById('hSpread').textContent = fmt(spread, 2);
-  document.getElementById('hMid').textContent = fmt(mid, 2);
-  document.getElementById('hEx').textContent = `${okCount}/${okCount + errCount}`;
+  const mid = (globalBestBid+globalBestAsk)/2;
+  const spread = globalBestAsk-globalBestBid;
+  document.getElementById('priceVal').textContent = fmt(mid,2);
+  document.getElementById('hBid').textContent = fmt(globalBestBid,2);
+  document.getElementById('hAsk').textContent = fmt(globalBestAsk,2);
+  document.getElementById('hSpread').textContent = fmt(spread,2);
+  document.getElementById('hMid').textContent = fmt(mid,2);
+  document.getElementById('hEx').textContent = `${okCount}/${okCount+errCount}`;
 
-  // Build cumulative
-  const bidCum = [], askCum = [];
-  let c = 0;
-  for (const [p, q] of bids) { c += q; bidCum.push([p, q, c]); }
-  c = 0;
-  for (const [p, q] of asks) { c += q; askCum.push([p, q, c]); }
+  // Build cumulative for tables
+  const bidCum=[], askCum=[];
+  let c=0; for(const[p,q]of bids){c+=q;bidCum.push([p,q,c]);}
+  c=0; for(const[p,q]of asks){c+=q;askCum.push([p,q,c]);}
+  const maxCum=Math.max(bidCum.length?bidCum[bidCum.length-1][2]:0,askCum.length?askCum[askCum.length-1][2]:0);
 
-  const maxCum = Math.max(bidCum.length ? bidCum[bidCum.length-1][2] : 0, askCum.length ? askCum[askCum.length-1][2] : 0);
-
-  // Render tables
-  document.getElementById('bidCount').textContent = `${bids.length} levels`;
-  document.getElementById('askCount').textContent = `${asks.length} levels`;
-
-  const bidsBody = document.getElementById('bidsBody');
-  bidsBody.innerHTML = bidCum.map(([p, q, cum]) => `
-    <tr class="bid-row" style="--depth:${pct(cum, maxCum)}">
-      <td class="price">${fmt(p, 2)}</td>
-      <td class="size">${fmtQty(q)}</td>
-      <td class="cum">${fmtQty(cum)}</td>
+  document.getElementById('bidCount').textContent=`${bids.length} levels`;
+  document.getElementById('askCount').textContent=`${asks.length} levels`;
+  document.getElementById('bidsBody').innerHTML=bidCum.map(([p,q,cum])=>`
+    <tr class="bid-row" style="--depth:${pct(cum,maxCum)}">
+      <td class="price">${fmt(p,2)}</td><td class="size">${fmtQty(q)}</td><td class="cum">${fmtQty(cum)}</td>
     </tr>`).join('');
-
-  const asksBody = document.getElementById('asksBody');
-  asksBody.innerHTML = askCum.map(([p, q, cum]) => `
-    <tr class="ask-row" style="--depth:${pct(cum, maxCum)}">
-      <td class="price">${fmt(p, 2)}</td>
-      <td class="size">${fmtQty(q)}</td>
-      <td class="cum">${fmtQty(cum)}</td>
+  document.getElementById('asksBody').innerHTML=askCum.map(([p,q,cum])=>`
+    <tr class="ask-row" style="--depth:${pct(cum,maxCum)}">
+      <td class="price">${fmt(p,2)}</td><td class="size">${fmtQty(q)}</td><td class="cum">${fmtQty(cum)}</td>
     </tr>`).join('');
 
   // Exchange breakdown
-  const filteredSet = new Set(filtered.map(e => e.exchange));
-  const sorted = [...d.results].sort((a, b) => {
-    if (a.error && !b.error) return 1;
-    if (!a.error && b.error) return -1;
-    if (filteredSet.has(a.exchange) && !filteredSet.has(b.exchange)) return 1;
-    if (!filteredSet.has(a.exchange) && filteredSet.has(b.exchange)) return -1;
-    return (a.spread.spread || 999) - (b.spread.spread || 999);
+  const filteredSet=new Set(filtered.map(e=>e.exchange));
+  const sorted=[...d.results].sort((a,b)=>{
+    if(a.error&&!b.error)return 1; if(!a.error&&b.error)return -1;
+    if(filteredSet.has(a.exchange)&&!filteredSet.has(b.exchange))return 1;
+    if(!filteredSet.has(a.exchange)&&filteredSet.has(b.exchange))return -1;
+    return(a.spread.spread||999)-(b.spread.spread||999);
   });
-  const apiErrors = d.results.filter(ex => ex.error).length;
-  document.getElementById('exSummary').textContent =
-    `${okCount} ok · ${apiErrors} api errors · ${filtered.length} outliers · ${d.results.length} total`;
-  document.getElementById('exGrid').innerHTML = sorted.map(ex => {
-    if (ex.error) return `<div class="ex-row error">
-        <span class="ex-name">${ex.exchange}</span>
-        <span class="ex-err">${ex.error}</span>
-       </div>`;
-    const isOutlier = filteredSet.has(ex.exchange);
-    const devPct = median > 0 ? ((ex.spread.mid / median - 1) * 100).toFixed(1) : '0.0';
-    return `<div class="ex-row${isOutlier ? ' error' : ''}">
-        <span class="ex-name">${ex.exchange}${isOutlier ? ' ⚠' : ''}</span>
-        <span class="ex-mid" style="${isOutlier ? 'color:var(--ask)' : ''}">${fmt(ex.spread.mid, 2)}</span>
-        <span class="ex-spread">${isOutlier ? devPct + '% off' : '±' + fmt(ex.spread.spread, 4)}</span>
-        <span class="ex-levels">${ex.levels.bids}/${ex.levels.asks}</span>
-       </div>`;
+  const apiErrors=d.results.filter(ex=>ex.error).length;
+  document.getElementById('exSummary').textContent=`${okCount} ok · ${apiErrors} api errors · ${filtered.length} outliers · ${d.results.length} total`;
+  document.getElementById('exGrid').innerHTML=sorted.map(ex=>{
+    if(ex.error)return`<div class="ex-row error"><span class="ex-name">${ex.exchange}</span><span class="ex-err">${ex.error}</span></div>`;
+    const isOutlier=filteredSet.has(ex.exchange);
+    const devPct=median>0?((ex.spread.mid/median-1)*100).toFixed(1):'0.0';
+    return`<div class="ex-row${isOutlier?' error':''}">
+      <span class="ex-name">${ex.exchange}${isOutlier?' ⚠':''}</span>
+      <span class="ex-mid" style="${isOutlier?'color:var(--ask)':''}">${fmt(ex.spread.mid,2)}</span>
+      <span class="ex-spread">${isOutlier?devPct+'% off':'±'+fmt(ex.spread.spread,4)}</span>
+      <span class="ex-levels">${ex.levels.bids}/${ex.levels.asks}</span>
+    </div>`;
   }).join('');
 
-  // Draw depth chart
-  drawDepth(bidCum, askCum, maxCum, mid);
+  // Store raw data and draw chart
+  _rawBids = bids;   // [[price, qty], ...]
+  _rawAsks = asks;
+  _mid = mid;
+  drawDepth(bids, asks, mid);
 }
 
-function drawDepth(bidCum, askCum, maxCum, mid) {
+/* ── Depth Chart ────────────────────────────────────────── */
+function drawDepth(rawBids, rawAsks, mid) {
   const canvas = document.getElementById('depthCanvas');
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = window.devicePixelRatio||1;
   const W = canvas.offsetWidth, H = canvas.offsetHeight;
-  canvas.width = W * dpr; canvas.height = H * dpr;
+  if (W===0||H===0) return;
+  canvas.width = W*dpr; canvas.height = H*dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  const PAD = { top: 16, right: 40, bottom: 30, left: 60 };
-  const w = W - PAD.left - PAD.right;
-  const h = H - PAD.top - PAD.bottom;
+  const PAD = { top:32, right:76, bottom:36, left:76 };
+  const cw = W-PAD.left-PAD.right;
+  const ch = H-PAD.top-PAD.bottom;
+  if (cw<=0||ch<=0) return;
 
-  if (!bidCum.length || !askCum.length) return;
-
-  // Price range: ±3% around mid
-  const range = mid * 0.03;
+  const range = mid * currentZoom;
   const minP = mid - range, maxP = mid + range;
 
-  function px(price) { return PAD.left + ((price - minP) / (maxP - minP)) * w; }
-  function py(cum) { return PAD.top + h - (cum / maxCum) * h; }
+  // Filter & build USD cumulative arrays
+  // bids: sorted high→low (index 0 = closest to mid)
+  const bids = rawBids
+    .filter(([p])=>p>=minP&&p<=mid)
+    .map(([p,q])=>({ p, q, usdVal: q*p }));
 
-  ctx.clearRect(0, 0, W, H);
+  // asks: sorted low→high (index 0 = closest to mid)
+  const asks = rawAsks
+    .filter(([p])=>p<=maxP&&p>=mid)
+    .map(([p,q])=>({ p, q, usdVal: q*p }));
 
-  // Grid lines
-  ctx.strokeStyle = 'rgba(30,39,48,0.8)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = PAD.top + (h / 4) * i;
-    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + w, y); ctx.stroke();
-    const label = fmt((maxCum / 4) * (4 - i), 1);
-    ctx.fillStyle = 'rgba(74,85,104,0.8)';
-    ctx.font = '10px IBM Plex Mono, monospace';
+  // Build cumulative USD
+  let cum=0;
+  bids.forEach(b=>{ cum+=b.usdVal; b.cumUSD=cum; });
+  cum=0;
+  asks.forEach(a=>{ cum+=a.usdVal; a.cumUSD=cum; });
+
+  const bidTotal = bids.length ? bids[bids.length-1].cumUSD : 0;
+  const askTotal = asks.length ? asks[asks.length-1].cumUSD : 0;
+  const maxUSD = Math.max(bidTotal, askTotal);
+
+  // Update summary totals
+  document.getElementById('bidUSDTotal').textContent = fmtUSD(bidTotal);
+  document.getElementById('askUSDTotal').textContent = fmtUSD(askTotal);
+
+  if (maxUSD===0) return;
+
+  function px(price) { return PAD.left + ((price-minP)/(maxP-minP))*cw; }
+  function py(usd)   { return PAD.top + ch - (usd/maxUSD)*ch; }
+
+  // Store chart params for tooltip
+  canvas._chartParams = { PAD, cw, ch, minP, maxP, maxUSD, bids, asks, mid };
+
+  ctx.clearRect(0,0,W,H);
+
+  /* ── Background ─── */
+  ctx.fillStyle = '#080b0f';
+  ctx.fillRect(0,0,W,H);
+
+  /* ── Grid lines ─── */
+  const gridCount = 4;
+  ctx.font = '10px IBM Plex Mono, monospace';
+  for (let i=0; i<=gridCount; i++) {
+    const y = PAD.top + (ch/gridCount)*i;
+    const usdVal = maxUSD*(gridCount-i)/gridCount;
+    ctx.strokeStyle = 'rgba(30,39,48,0.9)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cw,y); ctx.stroke();
+    ctx.setLineDash([]);
+    // Left Y-axis (bid side)
+    ctx.fillStyle = 'rgba(0,230,118,0.5)';
     ctx.textAlign = 'right';
-    ctx.fillText(label, PAD.left - 6, y + 4);
+    ctx.fillText(fmtUSD(usdVal), PAD.left-6, y+3);
+    // Right Y-axis (ask side)
+    ctx.fillStyle = 'rgba(255,61,90,0.5)';
+    ctx.textAlign = 'left';
+    ctx.fillText(fmtUSD(usdVal), PAD.left+cw+6, y+3);
   }
 
-  // Filter to range
-  const bidsInRange = bidCum.filter(([p]) => p >= minP);
-  const asksInRange = askCum.filter(([p]) => p <= maxP);
+  /* ── Histogram bars ─── */
+  // Bids
+  if (bids.length > 1) {
+    for (let i=0; i<bids.length; i++) {
+      const b = bids[i];
+      const x = px(b.p);
+      const barH = (b.usdVal/maxUSD)*ch;
+      const nextP = i+1 < bids.length ? bids[i+1].p : minP;
+      const barW = Math.max(1, Math.abs(px(b.p)-px(nextP))-1);
+      ctx.fillStyle = 'rgba(0,230,118,0.15)';
+      ctx.fillRect(x-barW, PAD.top+ch-barH, barW, barH);
+    }
+  }
+  // Asks
+  if (asks.length > 1) {
+    for (let i=0; i<asks.length; i++) {
+      const a = asks[i];
+      const x = px(a.p);
+      const barH = (a.usdVal/maxUSD)*ch;
+      const nextP = i+1 < asks.length ? asks[i+1].p : maxP;
+      const barW = Math.max(1, Math.abs(px(nextP)-px(a.p))-1);
+      ctx.fillStyle = 'rgba(255,61,90,0.15)';
+      ctx.fillRect(x, PAD.top+ch-barH, barW, barH);
+    }
+  }
 
-  function drawArea(points, colorLine, colorFill, isBid) {
+  /* ── Staircase fill + line ─── */
+  function drawStaircase(points, isBid) {
     if (!points.length) return;
-    ctx.beginPath();
+    const [R,G,B] = isBid ? [0,230,118] : [255,61,90];
+
+    // Build step path
+    // Bids: index 0 = highest price (closest to mid), step LEFT
+    // Asks: index 0 = lowest price (closest to mid), step RIGHT
+    const stepPath = new Path2D();
+    stepPath.moveTo(px(mid), py(0));
+
     if (isBid) {
-      ctx.moveTo(px(points[0][0]), PAD.top + h);
-      for (const [p,, c] of points) { ctx.lineTo(px(p), py(c)); }
-      ctx.lineTo(px(points[points.length-1][0]), PAD.top + h);
-    } else {
-      ctx.moveTo(px(points[0][0]), PAD.top + h);
-      for (const [p,, c] of points) { ctx.lineTo(px(p), py(c)); }
-      ctx.lineTo(px(points[points.length-1][0]), PAD.top + h);
-    }
-    ctx.closePath();
-    const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + h);
-    const [r,g,b] = isBid ? [0,230,118] : [255,61,90];
-    grad.addColorStop(0, `rgba(${r},${g},${b},0.18)`);
-    grad.addColorStop(1, `rgba(${r},${g},${b},0.02)`);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.beginPath();
-    if (isBid) {
-      for (let i = 0; i < points.length; i++) {
-        const [p,, c] = points[i];
-        i === 0 ? ctx.moveTo(px(p), py(c)) : ctx.lineTo(px(p), py(c));
+      // gap from mid to first bid (if any)
+      stepPath.lineTo(px(points[0].p), py(0));
+      for (let i=0; i<points.length; i++) {
+        const prevCum = i===0 ? 0 : points[i-1].cumUSD;
+        stepPath.lineTo(px(points[i].p), py(prevCum));
+        stepPath.lineTo(px(points[i].p), py(points[i].cumUSD));
       }
+      // close fill area
+      const fillPath = new Path2D(stepPath);
+      fillPath.lineTo(px(points[points.length-1].p), py(0));
+      fillPath.lineTo(px(mid), py(0));
+      fillPath.closePath();
+      const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top+ch);
+      grad.addColorStop(0, `rgba(${R},${G},${B},0.20)`);
+      grad.addColorStop(0.6, `rgba(${R},${G},${B},0.08)`);
+      grad.addColorStop(1, `rgba(${R},${G},${B},0.02)`);
+      ctx.fillStyle = grad;
+      ctx.fill(fillPath);
     } else {
-      for (let i = 0; i < points.length; i++) {
-        const [p,, c] = points[i];
-        i === 0 ? ctx.moveTo(px(p), py(c)) : ctx.lineTo(px(p), py(c));
+      stepPath.lineTo(px(points[0].p), py(0));
+      for (let i=0; i<points.length; i++) {
+        const prevCum = i===0 ? 0 : points[i-1].cumUSD;
+        stepPath.lineTo(px(points[i].p), py(prevCum));
+        stepPath.lineTo(px(points[i].p), py(points[i].cumUSD));
       }
+      const fillPath = new Path2D(stepPath);
+      fillPath.lineTo(px(points[points.length-1].p), py(0));
+      fillPath.lineTo(px(mid), py(0));
+      fillPath.closePath();
+      const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top+ch);
+      grad.addColorStop(0, `rgba(${R},${G},${B},0.20)`);
+      grad.addColorStop(0.6, `rgba(${R},${G},${B},0.08)`);
+      grad.addColorStop(1, `rgba(${R},${G},${B},0.02)`);
+      ctx.fillStyle = grad;
+      ctx.fill(fillPath);
     }
-    ctx.strokeStyle = colorLine;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+
+    // Draw the step line
+    ctx.stroke(stepPath);
   }
 
-  drawArea(bidsInRange, '#00e676', null, true);
-  drawArea(asksInRange, '#ff3d5a', null, false);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(0,230,118,0.85)';
+  drawStaircase(bids, true);
 
-  // Mid line
+  ctx.strokeStyle = 'rgba(255,61,90,0.85)';
+  drawStaircase(asks, false);
+
+  /* ── Mid line ─── */
+  const midX = px(mid);
   ctx.beginPath();
-  ctx.setLineDash([4, 4]);
-  ctx.strokeStyle = 'rgba(61,142,240,0.5)';
+  ctx.setLineDash([3,5]);
+  ctx.strokeStyle = 'rgba(61,142,240,0.6)';
   ctx.lineWidth = 1;
-  ctx.moveTo(px(mid), PAD.top);
-  ctx.lineTo(px(mid), PAD.top + h);
+  ctx.moveTo(midX, PAD.top);
+  ctx.lineTo(midX, PAD.top+ch);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(61,142,240,0.9)';
-  ctx.font = '10px IBM Plex Mono, monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(fmt(mid, 0), px(mid), PAD.top - 4);
 
-  // X-axis price labels
+  // Mid label
+  ctx.fillStyle = 'rgba(61,142,240,1)';
+  ctx.font = '600 11px IBM Plex Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(fmt(mid,0), midX, PAD.top-8);
+
+  /* ── X-axis price labels ─── */
   ctx.fillStyle = 'rgba(74,85,104,0.8)';
   ctx.font = '10px IBM Plex Mono, monospace';
   ctx.textAlign = 'center';
-  const steps = 6;
-  for (let i = 0; i <= steps; i++) {
-    const price = minP + (range * 2 / steps) * i;
+  const xSteps = 8;
+  for (let i=0; i<=xSteps; i++) {
+    const price = minP + (range*2/xSteps)*i;
     const x = px(price);
-    ctx.fillText(fmt(price, 0), x, PAD.top + h + 18);
+    // tick
+    ctx.strokeStyle='rgba(30,39,48,0.6)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,PAD.top+ch); ctx.lineTo(x,PAD.top+ch+4); ctx.stroke();
+    ctx.fillText(fmt(price,0), x, PAD.top+ch+16);
   }
+
+  /* ── Axis borders ─── */
+  ctx.strokeStyle = 'rgba(30,39,48,0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD.left,PAD.top); ctx.lineTo(PAD.left,PAD.top+ch);
+  ctx.moveTo(PAD.left+cw,PAD.top); ctx.lineTo(PAD.left+cw,PAD.top+ch);
+  ctx.moveTo(PAD.left,PAD.top+ch); ctx.lineTo(PAD.left+cw,PAD.top+ch);
+  ctx.stroke();
 }
 
-// Resize redraw
-window.addEventListener('resize', () => {
-  if (currentData) {
-    const raw = document.getElementById('symbolInput').value.trim().toUpperCase() || 'BTC';
-    const sym = raw.includes('-') ? raw : raw + '-USDT';
-    render(currentData, sym);
+/* ── Tooltip ────────────────────────────────────────────── */
+const canvas = document.getElementById('depthCanvas');
+const tooltip = document.getElementById('depthTooltip');
+
+canvas.addEventListener('mousemove', e => {
+  const params = canvas._chartParams;
+  if (!params) return;
+  const {PAD,cw,ch,minP,maxP,maxUSD,bids,asks,mid} = params;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  if (mouseX<PAD.left||mouseX>PAD.left+cw||mouseY<PAD.top||mouseY>PAD.top+ch) {
+    tooltip.style.display='none'; return;
   }
+
+  const price = minP + ((mouseX-PAD.left)/cw)*(maxP-minP);
+
+  // Find nearest bid cumulative at or below this price
+  let bidVal=0, bidTot=0;
+  for (const b of bids) {
+    if (b.p>=price) { bidVal=b.usdVal; bidTot=b.cumUSD; }
+    else break;
+  }
+
+  // Find nearest ask cumulative at or above this price
+  let askVal=0, askTot=0;
+  for (const a of asks) {
+    if (a.p<=price) { askVal=a.usdVal; askTot=a.cumUSD; }
+    else break;
+  }
+
+  document.getElementById('ttPrice').textContent = fmt(price,2);
+  document.getElementById('ttBidVal').textContent = fmtUSD(bidVal);
+  document.getElementById('ttBidTot').textContent = fmtUSD(bidTot);
+  document.getElementById('ttAskVal').textContent = fmtUSD(askVal);
+  document.getElementById('ttAskTot').textContent = fmtUSD(askTot);
+
+  // Draw crosshair
+  const dpr = window.devicePixelRatio||1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  // Redraw chart then overlay crosshair
+  drawDepth(_rawBids, _rawAsks, _mid);
+  const ctx2 = canvas.getContext('2d');
+  ctx2.scale(dpr,dpr);
+  ctx2.strokeStyle='rgba(255,255,255,0.15)';
+  ctx2.lineWidth=1; ctx2.setLineDash([3,4]);
+  ctx2.beginPath();
+  ctx2.moveTo(mouseX,PAD.top); ctx2.lineTo(mouseX,PAD.top+ch);
+  ctx2.moveTo(PAD.left,mouseY); ctx2.lineTo(PAD.left+cw,mouseY);
+  ctx2.stroke(); ctx2.setLineDash([]);
+
+  const tx = e.clientX + 16;
+  const ty = Math.min(e.clientY - 10, window.innerHeight - 170);
+  tooltip.style.left = (tx+180>window.innerWidth ? e.clientX-220 : tx)+'px';
+  tooltip.style.top = ty+'px';
+  tooltip.style.display = 'block';
 });
 
-// Enter key
-document.getElementById('symbolInput').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+canvas.addEventListener('mouseleave', () => {
+  tooltip.style.display = 'none';
+  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid);
+});
 
-// Initial load
+/* ── Resize ─────────────────────────────────────────────── */
+window.addEventListener('resize', () => {
+  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid);
+});
+
+document.getElementById('symbolInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter') load();
+});
+
 load();
 </script>
 </body>
