@@ -1,16 +1,16 @@
-name: Update order book data
+name: Run order book server
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 * * * *"
-
-permissions:
-  contents: write
+  # Uncomment to run on a schedule (max 6h per job on free tier)
+  # schedule:
+  #   - cron: "0 */5 * * *"
 
 jobs:
-  generate:
+  serve:
     runs-on: ubuntu-latest
+    timeout-minutes: 350  # Free tier cap is 6h; set lower as needed
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,17 +20,51 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Generate snapshot
-        run: go run . --dir docs --file data.json --symbol BTC-USDT --limit 100
+      - name: Build server
+        run: go build -o aggregator main.go
 
-      - name: Commit updated snapshot
+      - name: Start server in background
         run: |
-          if git status --porcelain | grep -q "docs/data.json"; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add docs/data.json
-            git commit -m "Update order book snapshot"
-            git push
-          else
-            echo "No changes to commit."
+          ./aggregator &
+          # Wait until the server is accepting connections
+          for i in $(seq 1 10); do
+            curl -sf http://localhost:8080/api/v1/book?symbol=BTC-USDT&limit=1 > /dev/null && break
+            echo "Waiting for server... ($i)"
+            sleep 2
+          done
+          echo "✅ Server is up"
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+
+      - name: Open Cloudflare tunnel
+        run: |
+          # Start tunnel, capture the .trycloudflare.com URL from its logs
+          cloudflared tunnel --url http://localhost:8080 --no-autoupdate 2>&1 | tee /tmp/cf.log &
+          CF_PID=$!
+
+          # Poll until the public URL appears in the log (usually < 10s)
+          for i in $(seq 1 30); do
+            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf.log | head -1)
+            if [ -n "$URL" ]; then
+              echo ""
+              echo "============================================"
+              echo "  🌐 Public URL: $URL"
+              echo "  📖 Order book: $URL/api/v1/book?symbol=BTC-USDT&limit=50"
+              echo "============================================"
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "$URL" ]; then
+            echo "❌ Tunnel URL not found in time. Check /tmp/cf.log:"
+            cat /tmp/cf.log
+            exit 1
           fi
+
+          # Keep the job alive — kill it manually via Actions UI when done
+          wait $CF_PID

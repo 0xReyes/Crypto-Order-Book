@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,8 +37,6 @@ type ExchangeConfig struct {
 	SymbolFormat SymbolFormat
 }
 
-// ⚠️ Note: Some smaller exchanges from the list were omitted due to lack of stable public API documentation
-// or requirements for API keys. This list covers ~95% of the requested volume.
 var exchangeConfigs = []ExchangeConfig{
 	// --- Tier 1 & Major ---
 	{Name: "Binance", URLTemplate: "https://api.binance.com/api/v3/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 1000, SymbolFormat: FormatNoSep},
@@ -56,16 +56,14 @@ var exchangeConfigs = []ExchangeConfig{
 	{Name: "Phemex", URLTemplate: "https://api.phemex.com/md/spot/orderbook?symbol=s%s", PathBids: "result.book.bids", PathAsks: "result.book.asks", LimitCap: 50, SymbolFormat: FormatNoSep},
 	{Name: "AscendEX", URLTemplate: "https://ascendex.com/api/pro/v1/depth?symbol=%s", PathBids: "data.data.bids", PathAsks: "data.data.asks", LimitCap: 100, SymbolFormat: FormatSlash},
 	{Name: "Poloniex", URLTemplate: "https://api.poloniex.com/markets/%s/orderBook?limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
-
-	// --- Tier 2 & Regional ---
-	{Name: "LBank", URLTemplate: "https://api.lbkex.com/v2/depth.do?symbol=%s&size=60", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 60, SymbolFormat: FormatLower}, // Uses underscore: btc_usdt
+	{Name: "LBank", URLTemplate: "https://api.lbkex.com/v2/depth.do?symbol=%s&size=60", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 60, SymbolFormat: FormatLower},
 	{Name: "Bitrue", URLTemplate: "https://openapi.bitrue.com/api/v1/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatNoSep},
 	{Name: "WhiteBIT", URLTemplate: "https://whitebit.com/api/v4/public/orderbook/%s?limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatUnderscore},
-	{Name: "DigiFinex", URLTemplate: "https://openapi.digifinex.com/v3/order_book?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatLower}, // underscore
+	{Name: "DigiFinex", URLTemplate: "https://openapi.digifinex.com/v3/order_book?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatLower},
 	{Name: "CoinW", URLTemplate: "https://api.coinw.com/api/v1/public?command=returnOrderBook&currencyPair=%s", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
 	{Name: "BigONE", URLTemplate: "https://big.one/api/v3/asset_pairs/%s/depth?limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatDash},
 	{Name: "Pionex", URLTemplate: "https://api.pionex.com/api/v1/market/depth?symbol=%s&limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatUnderscore},
-	{Name: "XT", URLTemplate: "https://sapi.xt.com/v4/public/depth?symbol=%s&limit=%d", PathBids: "result.bids", PathAsks: "result.asks", LimitCap: 50, SymbolFormat: FormatLower}, // underscore
+	{Name: "XT", URLTemplate: "https://sapi.xt.com/v4/public/depth?symbol=%s&limit=%d", PathBids: "result.bids", PathAsks: "result.asks", LimitCap: 50, SymbolFormat: FormatLower},
 	{Name: "BTSE", URLTemplate: "https://api.btse.com/spot/api/v2/orderbook/L2?symbol=%s", PathBids: "buyQuote", PathAsks: "sellQuote", LimitCap: 50, SymbolFormat: FormatDash},
 	{Name: "Toobit", URLTemplate: "https://api.toobit.com/quote/v1/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatNoSep},
 	{Name: "Bitunix", URLTemplate: "https://api.bitunix.com/api/v1/market/depth?symbol=%s", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatNoSep},
@@ -108,23 +106,44 @@ type APIResponse struct {
 	Results   []ExchangeResponse `json:"results"`
 }
 
-// --- Main Handler ---
+// --- Entry Point ---
 
 func main() {
+	// CLI flags
+	dirFlag := flag.String("dir", "", "Output directory for snapshot mode (enables CLI mode)")
+	fileFlag := flag.String("file", "data.json", "Output filename within --dir")
+	symbolFlag := flag.String("symbol", "BTC-USDT", "Trading pair symbol")
+	limitFlag := flag.Int("limit", 100, "Order book depth per exchange")
+	portFlag := flag.String("port", "", "HTTP server port (overrides PORT env var, enables server mode)")
+	flag.Parse()
+
+	// CLI snapshot mode: --dir was provided
+	if *dirFlag != "" {
+		runSnapshot(*dirFlag, *fileFlag, *symbolFlag, *limitFlag)
+		return
+	}
+
+	// Server mode (default)
+	port := *portFlag
+	if port == "" {
+		port = os.Getenv("PORT")
+	}
+	if port == "" {
+		port = "8080"
+	}
+	runServer(port)
+}
+
+// --- Server Mode ---
+
+func runServer(port string) {
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
 	http.HandleFunc("/api/v1/book", handleDepth)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
 	fmt.Printf("🚀 Server running on port %s\n", port)
 	log.Fatal(http.ListenAndServe("0.0.0.0:"+port, nil))
 }
-
-// --- API Logic ---
 
 func handleDepth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -143,6 +162,48 @@ func handleDepth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	payload := fetchAll(symbol, limit)
+	json.NewEncoder(w).Encode(payload)
+}
+
+// --- CLI Snapshot Mode ---
+
+func runSnapshot(dir, file, symbol string, limit int) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Fatalf("❌ Failed to create output dir %q: %v", dir, err)
+	}
+
+	fmt.Printf("📸 Fetching order book snapshot: symbol=%s limit=%d\n", symbol, limit)
+	payload := fetchAll(symbol, limit)
+
+	outPath := filepath.Join(dir, file)
+	f, err := os.Create(outPath)
+	if err != nil {
+		log.Fatalf("❌ Failed to create output file %q: %v", outPath, err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(payload); err != nil {
+		log.Fatalf("❌ Failed to write JSON: %v", err)
+	}
+
+	// Print a quick summary to stdout
+	ok, failed := 0, 0
+	for _, r := range payload.Results {
+		if r.Error != "" {
+			failed++
+		} else {
+			ok++
+		}
+	}
+	fmt.Printf("✅ Wrote %s  (exchanges: %d ok / %d failed)\n", outPath, ok, failed)
+}
+
+// --- Shared Fetch Logic ---
+
+func fetchAll(symbol string, limit int) APIResponse {
 	var wg sync.WaitGroup
 	resultsChan := make(chan ExchangeResponse, len(exchangeConfigs))
 
@@ -165,13 +226,11 @@ func handleDepth(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, res)
 	}
 
-	payload := APIResponse{
+	return APIResponse{
 		Symbol:    symbol,
 		Timestamp: start.UnixMilli(),
 		Results:   responses,
 	}
-
-	json.NewEncoder(w).Encode(payload)
 }
 
 func fetchExchange(cfg ExchangeConfig, baseSymbol string, requestedLimit int, out chan<- ExchangeResponse) {
@@ -182,7 +241,6 @@ func fetchExchange(cfg ExchangeConfig, baseSymbol string, requestedLimit int, ou
 
 	formattedSymbol := formatSymbol(baseSymbol, cfg.SymbolFormat)
 
-	// Special LBank handling (requires lower case underscore)
 	if cfg.Name == "LBank" || cfg.Name == "DigiFinex" || cfg.Name == "XT" {
 		formattedSymbol = strings.ToLower(baseSymbol)
 		formattedSymbol = strings.ReplaceAll(formattedSymbol, "-", "_")
@@ -349,12 +407,10 @@ func normalizePoints(raw interface{}) []OrderPoint {
 	}
 	for _, item := range list {
 		var p, q float64
-		// Case 1: [price, qty] array
 		if arr, ok := item.([]interface{}); ok && len(arr) >= 2 {
 			p = toFloat(arr[0])
 			q = toFloat(arr[1])
 		}
-		// Case 2: Object with keys
 		if obj, ok := item.(map[string]interface{}); ok {
 			p = getFloatFromMap(obj, "price", "p", "px", "bid", "ask", "bid_price", "ask_price", "rate", "limit_price")
 			q = getFloatFromMap(obj, "amount", "size", "quantity", "q", "vol", "volume", "bid_size", "ask_size")
