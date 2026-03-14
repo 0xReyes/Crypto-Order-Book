@@ -258,7 +258,7 @@ const API = '/api/v1/book';
 let currentData = null;
 let currentZoom = 0.01;
 // Raw bid/ask arrays for re-drawing on zoom change: [[price, qty], ...]
-let _rawBids = [], _rawAsks = [], _mid = 0;
+let _rawBids = [], _rawAsks = [], _mid = 0, _bestBid = 0, _bestAsk = 0;
 
 /* ── Formatters ─────────────────────────────────────────── */
 function fmt(n, dec=2) {
@@ -287,7 +287,7 @@ function setZoom(z) {
   const pctStr = (z*100)+'%';
   document.getElementById('bidPctLabel').textContent = 'BIDS -'+pctStr;
   document.getElementById('askPctLabel').textContent = 'ASKS +'+pctStr;
-  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid);
+  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
 }
 
 /* ── Fetch ──────────────────────────────────────────────── */
@@ -342,7 +342,9 @@ function render(d, sym) {
   const bids = [...bidMap.entries()].sort((a,b)=>b[0]-a[0]).slice(0,200);
   const asks = [...askMap.entries()].sort((a,b)=>a[0]-b[0]).slice(0,200);
 
-  const mid = (globalBestBid+globalBestAsk)/2;
+  // Guard against crossed book (bestBid > bestAsk across different exchanges)
+  const isCrossed = globalBestBid > globalBestAsk;
+  const mid = isCrossed ? median : (globalBestBid+globalBestAsk)/2;
   const spread = globalBestAsk-globalBestBid;
   document.getElementById('priceVal').textContent = fmt(mid,2);
   document.getElementById('hBid').textContent = fmt(globalBestBid,2);
@@ -391,14 +393,18 @@ function render(d, sym) {
   }).join('');
 
   // Store raw data and draw chart
-  _rawBids = bids;   // [[price, qty], ...]
+  _rawBids = bids;
+  _bestBid = globalBestBid;
+  _bestAsk = globalBestAsk;   // [[price, qty], ...]
   _rawAsks = asks;
   _mid = mid;
-  drawDepth(bids, asks, mid);
+  drawDepth(bids, asks, mid, globalBestBid, globalBestAsk);
 }
 
 /* ── Depth Chart ────────────────────────────────────────── */
-function drawDepth(rawBids, rawAsks, mid) {
+function drawDepth(rawBids, rawAsks, mid, bestBid, bestAsk) {
+  bestBid = bestBid ?? mid;
+  bestAsk = bestAsk ?? mid;
   const canvas = document.getElementById('depthCanvas');
   const dpr = window.devicePixelRatio||1;
   const W = canvas.offsetWidth, H = canvas.offsetHeight;
@@ -418,12 +424,12 @@ function drawDepth(rawBids, rawAsks, mid) {
   // Filter & build USD cumulative arrays
   // bids: sorted high→low (index 0 = closest to mid)
   const bids = rawBids
-    .filter(([p])=>p>=minP&&p<=mid)
+    .filter(([p])=>p>=minP&&p<=maxP)
     .map(([p,q])=>({ p, q, usdVal: q*p }));
 
   // asks: sorted low→high (index 0 = closest to mid)
   const asks = rawAsks
-    .filter(([p])=>p<=maxP&&p>=mid)
+    .filter(([p])=>p<=maxP&&p>=minP)
     .map(([p,q])=>({ p, q, usdVal: q*p }));
 
   // Build cumulative USD
@@ -510,7 +516,7 @@ function drawDepth(rawBids, rawAsks, mid) {
     // Bids: index 0 = highest price (closest to mid), step LEFT
     // Asks: index 0 = lowest price (closest to mid), step RIGHT
     const stepPath = new Path2D();
-    stepPath.moveTo(px(mid), py(0));
+    stepPath.moveTo(px(isBid ? (bestBid??mid) : (bestAsk??mid)), py(0));
 
     if (isBid) {
       // gap from mid to first bid (if any)
@@ -523,7 +529,7 @@ function drawDepth(rawBids, rawAsks, mid) {
       // close fill area
       const fillPath = new Path2D(stepPath);
       fillPath.lineTo(px(points[points.length-1].p), py(0));
-      fillPath.lineTo(px(mid), py(0));
+      fillPath.lineTo(px(isBid ? (bestBid??mid) : (bestAsk??mid)), py(0));
       fillPath.closePath();
       const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top+ch);
       grad.addColorStop(0, `rgba(${R},${G},${B},0.20)`);
@@ -540,7 +546,7 @@ function drawDepth(rawBids, rawAsks, mid) {
       }
       const fillPath = new Path2D(stepPath);
       fillPath.lineTo(px(points[points.length-1].p), py(0));
-      fillPath.lineTo(px(mid), py(0));
+      fillPath.lineTo(px(isBid ? (bestBid??mid) : (bestAsk??mid)), py(0));
       fillPath.closePath();
       const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top+ch);
       grad.addColorStop(0, `rgba(${R},${G},${B},0.20)`);
@@ -644,7 +650,7 @@ canvas.addEventListener('mousemove', e => {
   const dpr = window.devicePixelRatio||1;
   const W = canvas.offsetWidth, H = canvas.offsetHeight;
   // Redraw chart then overlay crosshair
-  drawDepth(_rawBids, _rawAsks, _mid);
+  drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
   const ctx2 = canvas.getContext('2d');
   ctx2.scale(dpr,dpr);
   ctx2.strokeStyle='rgba(255,255,255,0.15)';
@@ -663,12 +669,12 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('mouseleave', () => {
   tooltip.style.display = 'none';
-  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid);
+  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
 });
 
 /* ── Resize ─────────────────────────────────────────────── */
 window.addEventListener('resize', () => {
-  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid);
+  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
 });
 
 document.getElementById('symbolInput').addEventListener('keydown', e=>{
