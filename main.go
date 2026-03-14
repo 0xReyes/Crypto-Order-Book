@@ -26,6 +26,8 @@ const (
 	FormatLower                          // btcusdt
 	FormatSlash                          // BTC/USDT
 	FormatKraken                         // Special (XBT)
+	FormatBitfinex                       // tBTCUST (prepend t, USDT→UST)
+	FormatGemini                         // btcusd (lowercase, USDT→usd)
 )
 
 type ExchangeConfig struct {
@@ -35,6 +37,7 @@ type ExchangeConfig struct {
 	PathAsks     string
 	LimitCap     int
 	SymbolFormat SymbolFormat
+	FlatArray    bool // true = flat alternating ["price","qty","price","qty",...]
 }
 
 var exchangeConfigs = []ExchangeConfig{
@@ -45,6 +48,8 @@ var exchangeConfigs = []ExchangeConfig{
 	{Name: "OKX", URLTemplate: "https://www.okx.com/api/v5/market/books?instId=%s&sz=%d", PathBids: "data.0.bids", PathAsks: "data.0.asks", LimitCap: 400, SymbolFormat: FormatDash},
 	{Name: "Bybit", URLTemplate: "https://api.bybit.com/v5/market/orderbook?category=spot&symbol=%s&limit=%d", PathBids: "result.b", PathAsks: "result.a", LimitCap: 200, SymbolFormat: FormatNoSep},
 	{Name: "KuCoin", URLTemplate: "https://api.kucoin.com/api/v1/market/orderbook/level2_100?symbol=%s", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 100, SymbolFormat: FormatDash},
+	{Name: "Bitfinex", URLTemplate: "https://api-pub.bitfinex.com/v2/book/%s/P0?len=%d", PathBids: "_bitfinex", PathAsks: "_bitfinex", LimitCap: 100, SymbolFormat: FormatBitfinex},
+	{Name: "Gemini", URLTemplate: "https://api.gemini.com/v1/book/%s?limit_bids=%d&limit_asks=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatGemini},
 	{Name: "Gate.io", URLTemplate: "https://api.gateio.ws/api/v4/spot/order_book?currency_pair=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatUnderscore},
 	{Name: "HTX", URLTemplate: "https://api.huobi.pro/market/depth?symbol=%s&type=step0", PathBids: "tick.bids", PathAsks: "tick.asks", LimitCap: 150, SymbolFormat: FormatLower},
 	{Name: "Crypto.com", URLTemplate: "https://api.crypto.com/exchange/v1/public/get-book?instrument_name=%s&depth=%d", PathBids: "result.data.0.bids", PathAsks: "result.data.0.asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
@@ -55,7 +60,7 @@ var exchangeConfigs = []ExchangeConfig{
 	{Name: "BitMart", URLTemplate: "https://api-cloud.bitmart.com/spot/quotation/v3/books?symbol=%s&limit=%d", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
 	{Name: "Phemex", URLTemplate: "https://api.phemex.com/md/spot/orderbook?symbol=s%s", PathBids: "result.book.bids", PathAsks: "result.book.asks", LimitCap: 50, SymbolFormat: FormatNoSep},
 	{Name: "AscendEX", URLTemplate: "https://ascendex.com/api/pro/v1/depth?symbol=%s", PathBids: "data.data.bids", PathAsks: "data.data.asks", LimitCap: 100, SymbolFormat: FormatSlash},
-	{Name: "Poloniex", URLTemplate: "https://api.poloniex.com/markets/%s/orderBook?limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 50, SymbolFormat: FormatUnderscore},
+	{Name: "Poloniex", URLTemplate: "https://api.poloniex.com/markets/%s/orderBook?limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 50, SymbolFormat: FormatUnderscore, FlatArray: true},
 	{Name: "LBank", URLTemplate: "https://api.lbkex.com/v2/depth.do?symbol=%s&size=60", PathBids: "data.bids", PathAsks: "data.asks", LimitCap: 60, SymbolFormat: FormatLower},
 	{Name: "Bitrue", URLTemplate: "https://openapi.bitrue.com/api/v1/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatNoSep},
 	{Name: "WhiteBIT", URLTemplate: "https://whitebit.com/api/v4/public/orderbook/%s?limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 100, SymbolFormat: FormatUnderscore},
@@ -113,7 +118,7 @@ func main() {
 	dirFlag := flag.String("dir", "", "Output directory for snapshot mode (enables CLI mode)")
 	fileFlag := flag.String("file", "data.json", "Output filename within --dir")
 	symbolFlag := flag.String("symbol", "BTC-USDT", "Trading pair symbol")
-	limitFlag := flag.Int("limit", 100, "Order book depth per exchange")
+	limitFlag := flag.Int("limit", 500, "Order book depth per exchange")
 	portFlag := flag.String("port", "", "HTTP server port (overrides PORT env var, enables server mode)")
 	flag.Parse()
 
@@ -160,7 +165,7 @@ func handleDepth(w http.ResponseWriter, r *http.Request) {
 		symbol = symbol + "-USDT"
 	}
 
-	limit := 100
+	limit := 500
 	if l := query.Get("limit"); l != "" {
 		if val, err := strconv.Atoi(l); err == nil && val > 0 {
 			limit = val
@@ -283,12 +288,25 @@ func fetchExchange(cfg ExchangeConfig, baseSymbol string, requestedLimit int, ou
 		return
 	}
 
+	// --- Bitfinex special handling ---
+	// Response is [[price, count, amount], ...] where amount>0 = bid, amount<0 = ask
+	if cfg.Name == "Bitfinex" {
+		parseBitfinex(raw, requestedLimit, out)
+		return
+	}
+
 	bidsRaw := traverseMap(raw, cfg.PathBids)
 	asksRaw := traverseMap(raw, cfg.PathAsks)
 
 	if bidsRaw == nil || asksRaw == nil {
 		out <- ExchangeResponse{Exchange: cfg.Name, Error: "Path not found"}
 		return
+	}
+
+	// Poloniex flat array fix: ["p","q","p","q",...] → [["p","q"],["p","q"],...]
+	if cfg.FlatArray {
+		bidsRaw = unflattenPairs(bidsRaw)
+		asksRaw = unflattenPairs(asksRaw)
 	}
 
 	cleanBids := normalizePoints(bidsRaw)
@@ -339,6 +357,79 @@ func fetchExchange(cfg ExchangeConfig, baseSymbol string, requestedLimit int, ou
 	}
 }
 
+// --- Bitfinex parser ---
+// Bitfinex v2 book returns [[price, count, amount], ...]
+// amount > 0 → bid, amount < 0 → ask (qty = abs(amount))
+func parseBitfinex(raw interface{}, limit int, out chan<- ExchangeResponse) {
+	list, ok := raw.([]interface{})
+	if !ok {
+		out <- ExchangeResponse{Exchange: "Bitfinex", Error: "Unexpected format"}
+		return
+	}
+
+	var bids, asks []OrderPoint
+	for _, item := range list {
+		arr, ok := item.([]interface{})
+		if !ok || len(arr) < 3 {
+			continue
+		}
+		price := toFloat(arr[0])
+		amount := toFloat(arr[2])
+		if price <= 0 {
+			continue
+		}
+		if amount > 0 {
+			bids = append(bids, OrderPoint{Price: price, Qty: amount})
+		} else if amount < 0 {
+			asks = append(asks, OrderPoint{Price: price, Qty: -amount})
+		}
+	}
+
+	if len(bids) == 0 || len(asks) == 0 {
+		out <- ExchangeResponse{Exchange: "Bitfinex", Error: "No liquidity"}
+		return
+	}
+
+	sort.Slice(bids, func(i, j int) bool { return bids[i].Price > bids[j].Price })
+	sort.Slice(asks, func(i, j int) bool { return asks[i].Price < asks[j].Price })
+
+	if len(bids) > limit {
+		bids = bids[:limit]
+	}
+	if len(asks) > limit {
+		asks = asks[:limit]
+	}
+
+	var data []OrderPoint
+	cumBid := 0.0
+	for _, p := range bids {
+		cumBid += p.Qty
+		cp := cumBid
+		data = append(data, OrderPoint{Price: p.Price, Qty: p.Qty, BidCum: &cp})
+	}
+	cumAsk := 0.0
+	for _, p := range asks {
+		cumAsk += p.Qty
+		cp := cumAsk
+		data = append(data, OrderPoint{Price: p.Price, Qty: p.Qty, AskCum: &cp})
+	}
+
+	bestBid := bids[0].Price
+	bestAsk := asks[0].Price
+
+	out <- ExchangeResponse{
+		Exchange: "Bitfinex",
+		Data:     data,
+		Levels:   LevelCount{Bids: len(bids), Asks: len(asks)},
+		Spread: SpreadData{
+			BestBid: bestBid,
+			BestAsk: bestAsk,
+			Spread:  bestAsk - bestBid,
+			Mid:     (bestAsk + bestBid) / 2,
+		},
+	}
+}
+
 // --- Helpers ---
 
 func formatSymbol(input string, format SymbolFormat) string {
@@ -364,8 +455,39 @@ func formatSymbol(input string, format SymbolFormat) string {
 			base = "XBT"
 		}
 		return base + quote
+	case FormatBitfinex:
+		// tBTCUST — prepend 't', USDT→UST
+		q := quote
+		if q == "USDT" {
+			q = "UST"
+		}
+		return "t" + base + q
+	case FormatGemini:
+		// btcusd — lowercase, USDT→usd
+		q := quote
+		if q == "USDT" {
+			q = "USD"
+		}
+		return strings.ToLower(base + q)
 	}
 	return base + quote
+}
+
+// unflattenPairs converts ["p","q","p","q",...] → [["p","q"],["p","q"],...]
+func unflattenPairs(raw interface{}) interface{} {
+	list, ok := raw.([]interface{})
+	if !ok || len(list) < 2 {
+		return raw
+	}
+	// Only unflatten if first element is a string (not a nested array or map)
+	if _, isStr := list[0].(string); !isStr {
+		return raw
+	}
+	var pairs []interface{}
+	for i := 0; i+1 < len(list); i += 2 {
+		pairs = append(pairs, []interface{}{list[i], list[i+1]})
+	}
+	return pairs
 }
 
 func traverseMap(data interface{}, path string) interface{} {
