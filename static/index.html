@@ -38,14 +38,22 @@
   .logo { font-family: var(--sans); font-weight: 800; font-size: 17px; color: var(--text); letter-spacing: -0.5px; white-space: nowrap; }
   .logo span { color: var(--accent); }
 
-  .symbol-input-wrap { display: flex; align-items: center; gap: 8px; }
+  .symbol-input-wrap { display: flex; align-items: center; gap: 6px; }
   .symbol-input {
     background: var(--bg3); border: 1px solid var(--border); color: var(--text);
     font-family: var(--mono); font-size: 13px; padding: 6px 10px;
-    border-radius: 4px; width: 130px; text-transform: uppercase;
+    border-radius: 4px; width: 80px; text-transform: uppercase;
     outline: none; transition: border-color 0.2s;
   }
   .symbol-input:focus { border-color: var(--accent); }
+  .quote-sep { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .quote-select {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
+    font-family: var(--mono); font-size: 12px; padding: 6px 8px;
+    border-radius: 4px; outline: none; cursor: pointer;
+    transition: border-color 0.2s; appearance: none; width: 76px; text-align: center;
+  }
+  .quote-select:focus { border-color: var(--accent); }
   .fetch-btn {
     background: var(--accent); color: #fff; border: none; cursor: pointer;
     font-family: var(--mono); font-size: 12px; font-weight: 600;
@@ -174,7 +182,7 @@
   <div class="logo">order<span>book</span></div>
 
   <div class="symbol-input-wrap">
-    <input class="symbol-input" id="symbolInput" value="BTC-USDT" spellcheck="false" />
+    <input class="symbol-input" id="symbolInput" value="BTC" placeholder="BTC" spellcheck="false" style="width:80px" />
     <button class="fetch-btn" id="fetchBtn" onclick="load()">FETCH</button>
   </div>
 
@@ -258,13 +266,16 @@ function fmtQty(n) {
 function pct(a, b) { return b ? ((a / b) * 100).toFixed(1) + '%' : '0%'; }
 
 async function load() {
-  const sym = document.getElementById('symbolInput').value.trim().toUpperCase() || 'BTC-USDT';
+  const raw = document.getElementById('symbolInput').value.trim().toUpperCase() || 'BTC';
+  // Mirror the backend normalization so the label shows the resolved pair
+  const sym = raw.includes('-') ? raw : raw + '-USDT';
+  document.getElementById('symbolLabel').textContent = sym;
   document.getElementById('fetchBtn').disabled = true;
   document.getElementById('liveDot').className = 'dot';
   document.getElementById('lastUpdate').textContent = 'loading…';
 
   try {
-    const r = await fetch(`${API}?symbol=${encodeURIComponent(sym)}&limit=100`);
+    const r = await fetch(`${API}?symbol=${encodeURIComponent(raw)}&limit=100`);
     const d = await r.json();
     currentData = d;
     render(d, sym);
@@ -286,8 +297,28 @@ function render(d, sym) {
   let okCount = 0, errCount = 0;
   let globalBestBid = 0, globalBestAsk = Infinity;
 
-  for (const ex of d.results) {
-    if (ex.error) { errCount++; continue; }
+  // --- Outlier filtering ---
+  // 1. Collect mid prices from all healthy exchanges
+  const validResults = d.results.filter(ex => !ex.error && ex.spread.mid > 0);
+  const mids = validResults.map(ex => ex.spread.mid).sort((a,b) => a - b);
+  const median = mids[Math.floor(mids.length / 2)] || 0;
+  // 2. Accept only exchanges whose mid is within ±20% of the median
+  const TOLERANCE = 0.20;
+  const clean = validResults.filter(ex =>
+    median === 0 || Math.abs(ex.spread.mid - median) / median <= TOLERANCE
+  );
+  errCount = d.results.length - clean.length;
+  // Log any exchanges that were filtered out
+  const filtered = validResults.filter(ex =>
+    median > 0 && Math.abs(ex.spread.mid - median) / median > TOLERANCE
+  );
+  if (filtered.length) {
+    console.warn('Outlier exchanges filtered:', filtered.map(e =>
+      `${e.exchange} mid=${e.spread.mid} (${((e.spread.mid/median-1)*100).toFixed(1)}% from median)`
+    ).join(', '));
+  }
+
+  for (const ex of clean) {
     okCount++;
     if (ex.spread.best_bid > globalBestBid) globalBestBid = ex.spread.best_bid;
     if (ex.spread.best_ask < globalBestAsk) globalBestAsk = ex.spread.best_ask;
@@ -346,24 +377,31 @@ function render(d, sym) {
     </tr>`).join('');
 
   // Exchange breakdown
+  const filteredSet = new Set(filtered.map(e => e.exchange));
   const sorted = [...d.results].sort((a, b) => {
     if (a.error && !b.error) return 1;
     if (!a.error && b.error) return -1;
+    if (filteredSet.has(a.exchange) && !filteredSet.has(b.exchange)) return 1;
+    if (!filteredSet.has(a.exchange) && filteredSet.has(b.exchange)) return -1;
     return (a.spread.spread || 999) - (b.spread.spread || 999);
   });
-  document.getElementById('exSummary').textContent = `${okCount} ok · ${errCount} failed · ${d.results.length} total`;
-  document.getElementById('exGrid').innerHTML = sorted.map(ex => ex.error
-    ? `<div class="ex-row error">
+  const apiErrors = d.results.filter(ex => ex.error).length;
+  document.getElementById('exSummary').textContent =
+    `${okCount} ok · ${apiErrors} api errors · ${filtered.length} outliers · ${d.results.length} total`;
+  document.getElementById('exGrid').innerHTML = sorted.map(ex => {
+    if (ex.error) return `<div class="ex-row error">
         <span class="ex-name">${ex.exchange}</span>
         <span class="ex-err">${ex.error}</span>
-       </div>`
-    : `<div class="ex-row">
-        <span class="ex-name">${ex.exchange}</span>
-        <span class="ex-mid">${fmt(ex.spread.mid, 2)}</span>
-        <span class="ex-spread">±${fmt(ex.spread.spread, 4)}</span>
+       </div>`;
+    const isOutlier = filteredSet.has(ex.exchange);
+    const devPct = median > 0 ? ((ex.spread.mid / median - 1) * 100).toFixed(1) : '0.0';
+    return `<div class="ex-row${isOutlier ? ' error' : ''}">
+        <span class="ex-name">${ex.exchange}${isOutlier ? ' ⚠' : ''}</span>
+        <span class="ex-mid" style="${isOutlier ? 'color:var(--ask)' : ''}">${fmt(ex.spread.mid, 2)}</span>
+        <span class="ex-spread">${isOutlier ? devPct + '% off' : '±' + fmt(ex.spread.spread, 4)}</span>
         <span class="ex-levels">${ex.levels.bids}/${ex.levels.asks}</span>
-       </div>`
-  ).join('');
+       </div>`;
+  }).join('');
 
   // Draw depth chart
   drawDepth(bidCum, askCum, maxCum, mid);
@@ -475,7 +513,13 @@ function drawDepth(bidCum, askCum, maxCum, mid) {
 }
 
 // Resize redraw
-window.addEventListener('resize', () => { if (currentData) render(currentData, document.getElementById('symbolInput').value); });
+window.addEventListener('resize', () => {
+  if (currentData) {
+    const raw = document.getElementById('symbolInput').value.trim().toUpperCase() || 'BTC';
+    const sym = raw.includes('-') ? raw : raw + '-USDT';
+    render(currentData, sym);
+  }
+});
 
 // Enter key
 document.getElementById('symbolInput').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
