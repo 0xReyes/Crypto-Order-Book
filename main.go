@@ -39,7 +39,7 @@ type ExchangeConfig struct {
 
 var exchangeConfigs = []ExchangeConfig{
 	// --- Tier 1 & Major ---
-	{Name: "Binance", URLTemplate: "https://api.binance.com/api/v3/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 1000, SymbolFormat: FormatNoSep},
+	{Name: "Binance", URLTemplate: "https://api.binance.us/api/v3/depth?symbol=%s&limit=%d", PathBids: "bids", PathAsks: "asks", LimitCap: 1000, SymbolFormat: FormatNoSep},
 	{Name: "Coinbase", URLTemplate: "https://api.exchange.coinbase.com/products/%s/book?level=2", PathBids: "bids", PathAsks: "asks", LimitCap: 50, SymbolFormat: FormatDash},
 	{Name: "Kraken", URLTemplate: "https://api.kraken.com/0/public/Depth?pair=%s&count=%d", PathBids: "result.*.bids", PathAsks: "result.*.asks", LimitCap: 500, SymbolFormat: FormatKraken},
 	{Name: "OKX", URLTemplate: "https://www.okx.com/api/v5/market/books?instId=%s&sz=%d", PathBids: "data.0.bids", PathAsks: "data.0.asks", LimitCap: 400, SymbolFormat: FormatDash},

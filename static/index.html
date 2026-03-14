@@ -1,366 +1,487 @@
-<!doctype html>
-<html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Global Liquidity Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <script>
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              gray: { 850: "#1a202c", 900: "#171923", 950: "#0d1117" },
-              lcw: {
-                green: "#00d092",
-                red: "#ff4949",
-                dark: "#14161f",
-                panel: "#1e2029",
-              },
-            },
-          },
-        },
-      };
-    </script>
-    <style>
-      body {
-        background-color: #14161f;
-        color: #e2e8f0;
-        font-family: "Inter", sans-serif;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Book — Aggregator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #080b0f;
+    --bg2:      #0d1117;
+    --bg3:      #131920;
+    --border:   #1e2730;
+    --bid:      #00e676;
+    --bid-dim:  rgba(0,230,118,0.08);
+    --ask:      #ff3d5a;
+    --ask-dim:  rgba(255,61,90,0.08);
+    --text:     #e8edf2;
+    --muted:    #4a5568;
+    --accent:   #3d8ef0;
+    --gold:     #f0a500;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'Syne', sans-serif;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; overflow-x: hidden; }
+
+  /* HEADER */
+  header {
+    display: flex; align-items: center; gap: 24px;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    background: var(--bg2); position: sticky; top: 0; z-index: 100;
+    flex-wrap: wrap;
+  }
+  .logo { font-family: var(--sans); font-weight: 800; font-size: 17px; color: var(--text); letter-spacing: -0.5px; white-space: nowrap; }
+  .logo span { color: var(--accent); }
+
+  .symbol-input-wrap { display: flex; align-items: center; gap: 8px; }
+  .symbol-input {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 13px; padding: 6px 10px;
+    border-radius: 4px; width: 130px; text-transform: uppercase;
+    outline: none; transition: border-color 0.2s;
+  }
+  .symbol-input:focus { border-color: var(--accent); }
+  .fetch-btn {
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    padding: 6px 14px; border-radius: 4px; letter-spacing: 0.5px;
+    transition: opacity 0.15s; white-space: nowrap;
+  }
+  .fetch-btn:hover { opacity: 0.85; }
+  .fetch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .price-hero { display: flex; align-items: baseline; gap: 10px; margin-left: auto; }
+  .price-val { font-family: var(--sans); font-size: 26px; font-weight: 700; letter-spacing: -1px; }
+  .price-label { color: var(--muted); font-size: 11px; }
+
+  .stat-chips { display: flex; gap: 16px; flex-wrap: wrap; }
+  .chip { display: flex; flex-direction: column; gap: 2px; }
+  .chip-label { color: var(--muted); font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; }
+  .chip-val { font-size: 13px; font-weight: 500; }
+  .chip-val.bid { color: var(--bid); }
+  .chip-val.ask { color: var(--ask); }
+  .chip-val.spread { color: var(--gold); }
+
+  .refresh-status { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .dot.live { background: var(--bid); box-shadow: 0 0 6px var(--bid); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  /* LAYOUT */
+  .main { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 260px 1fr; gap: 1px; height: calc(100vh - 57px); background: var(--border); }
+  .panel { background: var(--bg2); overflow: hidden; display: flex; flex-direction: column; }
+  .panel-depth { grid-column: 1 / -1; }
+
+  .panel-header {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    font-family: var(--sans); font-size: 11px; font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .panel-header .badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    font-family: var(--mono); font-weight: 400; letter-spacing: 0;
+  }
+  .badge-bid { background: var(--bid-dim); color: var(--bid); border: 1px solid rgba(0,230,118,0.2); }
+  .badge-ask { background: var(--ask-dim); color: var(--ask); border: 1px solid rgba(255,61,90,0.2); }
+
+  /* DEPTH CHART */
+  #depthCanvas { width: 100%; height: 100%; display: block; }
+
+  /* ORDER BOOK TABLE */
+  .ob-scroll { overflow-y: auto; flex: 1; }
+  .ob-scroll::-webkit-scrollbar { width: 4px; }
+  .ob-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; background: var(--bg2);
+    padding: 8px 14px; text-align: right; color: var(--muted);
+    font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+    border-bottom: 1px solid var(--border); font-weight: 400; z-index: 2;
+  }
+  thead th:first-child { text-align: left; }
+  tbody tr { transition: background 0.1s; position: relative; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  td {
+    padding: 4px 14px; text-align: right; font-size: 12px;
+    white-space: nowrap; line-height: 1.7;
+  }
+  td:first-child { text-align: left; }
+
+  .bid-row td.price { color: var(--bid); font-weight: 500; }
+  .ask-row td.price { color: var(--ask); font-weight: 500; }
+  td.size { color: var(--text); }
+  td.cum { color: var(--muted); }
+
+  /* depth bar behind row */
+  .bid-row { background: linear-gradient(to left, var(--bid-dim) var(--depth,0%), transparent var(--depth,0%)); }
+  .ask-row { background: linear-gradient(to right, var(--ask-dim) var(--depth,0%), transparent var(--depth,0%)); }
+
+  /* EXCHANGE PANEL */
+  .ex-grid { display: flex; flex-direction: column; overflow-y: auto; flex: 1; }
+  .ex-grid::-webkit-scrollbar { width: 4px; }
+  .ex-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .ex-row {
+    display: grid; grid-template-columns: 130px 1fr 1fr 80px;
+    align-items: center; padding: 7px 14px; border-bottom: 1px solid rgba(30,39,48,0.6);
+    gap: 8px; transition: background 0.1s; cursor: default;
+  }
+  .ex-row:hover { background: rgba(255,255,255,0.02); }
+  .ex-row.error { opacity: 0.35; }
+  .ex-name { font-weight: 500; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ex-mid { font-size: 12px; color: var(--text); text-align: right; }
+  .ex-spread { font-size: 11px; color: var(--gold); text-align: right; }
+  .ex-levels { font-size: 10px; color: var(--muted); text-align: right; }
+  .ex-err { font-size: 10px; color: var(--ask); opacity: 0.7; grid-column: 2/-1; }
+
+  /* LOADING */
+  #loadOverlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 20px; z-index: 999;
+  }
+  .spinner {
+    width: 36px; height: 36px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loadOverlay p { color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+
+  /* responsive */
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: 200px auto auto; }
+    .panel-depth { grid-column: 1; }
+    .price-hero { margin-left: 0; }
+    .stat-chips { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loadOverlay">
+  <div class="spinner"></div>
+  <p>FETCHING ORDER BOOK</p>
+</div>
+
+<header>
+  <div class="logo">order<span>book</span></div>
+
+  <div class="symbol-input-wrap">
+    <input class="symbol-input" id="symbolInput" value="BTC-USDT" spellcheck="false" />
+    <button class="fetch-btn" id="fetchBtn" onclick="load()">FETCH</button>
+  </div>
+
+  <div class="stat-chips">
+    <div class="chip"><span class="chip-label">Best Bid</span><span class="chip-val bid" id="hBid">—</span></div>
+    <div class="chip"><span class="chip-label">Best Ask</span><span class="chip-val ask" id="hAsk">—</span></div>
+    <div class="chip"><span class="chip-label">Spread</span><span class="chip-val spread" id="hSpread">—</span></div>
+    <div class="chip"><span class="chip-label">Mid</span><span class="chip-val" id="hMid">—</span></div>
+    <div class="chip"><span class="chip-label">Exchanges</span><span class="chip-val" id="hEx">—</span></div>
+  </div>
+
+  <div class="price-hero">
+    <span class="price-val" id="priceVal">—</span>
+    <span class="price-label" id="symbolLabel">BTC-USDT</span>
+  </div>
+
+  <div class="refresh-status">
+    <div class="dot" id="liveDot"></div>
+    <span id="lastUpdate">—</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Depth Chart -->
+  <div class="panel panel-depth">
+    <div class="panel-header">Depth Chart</div>
+    <canvas id="depthCanvas"></canvas>
+  </div>
+
+  <!-- Bids -->
+  <div class="panel">
+    <div class="panel-header">
+      Bids <span class="badge badge-bid" id="bidCount">0 levels</span>
+    </div>
+    <div class="ob-scroll">
+      <table>
+        <thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
+        <tbody id="bidsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Asks -->
+  <div class="panel">
+    <div class="panel-header">
+      Asks <span class="badge badge-ask" id="askCount">0 levels</span>
+    </div>
+    <div class="ob-scroll">
+      <table>
+        <thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
+        <tbody id="asksBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Exchange breakdown modal-strip via overlay panel — replaced with bottom bar -->
+<div style="background:var(--bg2); border-top:1px solid var(--border); overflow-x:auto; max-height:220px; overflow-y:auto;" id="exPanel">
+  <div style="padding:10px 16px; border-bottom:1px solid var(--border); font-family:var(--sans); font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); display:flex; gap:16px;">
+    <span>Exchange Breakdown</span>
+    <span style="margin-left:auto; font-weight:400; color:var(--muted)" id="exSummary"></span>
+  </div>
+  <div class="ex-grid" id="exGrid"></div>
+</div>
+
+<script>
+const API = '/api/v1/book';
+let currentData = null;
+
+function fmt(n, dec = 2) {
+  if (n == null || isNaN(n)) return '—';
+  return n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function fmtQty(n) {
+  if (n >= 1000) return fmt(n, 2);
+  if (n >= 1) return fmt(n, 4);
+  return fmt(n, 6);
+}
+function pct(a, b) { return b ? ((a / b) * 100).toFixed(1) + '%' : '0%'; }
+
+async function load() {
+  const sym = document.getElementById('symbolInput').value.trim().toUpperCase() || 'BTC-USDT';
+  document.getElementById('fetchBtn').disabled = true;
+  document.getElementById('liveDot').className = 'dot';
+  document.getElementById('lastUpdate').textContent = 'loading…';
+
+  try {
+    const r = await fetch(`${API}?symbol=${encodeURIComponent(sym)}&limit=100`);
+    const d = await r.json();
+    currentData = d;
+    render(d, sym);
+  } catch(e) {
+    document.getElementById('lastUpdate').textContent = 'error: ' + e.message;
+  } finally {
+    document.getElementById('fetchBtn').disabled = false;
+  }
+}
+
+function render(d, sym) {
+  document.getElementById('symbolLabel').textContent = sym;
+  document.getElementById('loadOverlay').style.display = 'none';
+  document.getElementById('liveDot').className = 'dot live';
+  document.getElementById('lastUpdate').textContent = new Date(d.timestamp).toLocaleTimeString();
+
+  // Aggregate all bid/ask levels across exchanges
+  const bidMap = new Map(), askMap = new Map();
+  let okCount = 0, errCount = 0;
+  let globalBestBid = 0, globalBestAsk = Infinity;
+
+  for (const ex of d.results) {
+    if (ex.error) { errCount++; continue; }
+    okCount++;
+    if (ex.spread.best_bid > globalBestBid) globalBestBid = ex.spread.best_bid;
+    if (ex.spread.best_ask < globalBestAsk) globalBestAsk = ex.spread.best_ask;
+    for (const pt of (ex.data || [])) {
+      if (pt.bidCum != null) {
+        const k = pt.price;
+        bidMap.set(k, (bidMap.get(k) || 0) + pt.qty);
+      } else if (pt.askCum != null) {
+        const k = pt.price;
+        askMap.set(k, (askMap.get(k) || 0) + pt.qty);
       }
-      .chart-container {
-        position: relative;
-        height: 400px;
-        width: 100%;
+    }
+  }
+
+  // Sort
+  const bids = [...bidMap.entries()].sort((a,b) => b[0]-a[0]).slice(0,100);
+  const asks = [...askMap.entries()].sort((a,b) => a[0]-b[0]).slice(0,100);
+
+  // Header stats
+  const mid = (globalBestBid + globalBestAsk) / 2;
+  const spread = globalBestAsk - globalBestBid;
+  document.getElementById('priceVal').textContent = fmt(mid, 2);
+  document.getElementById('hBid').textContent = fmt(globalBestBid, 2);
+  document.getElementById('hAsk').textContent = fmt(globalBestAsk, 2);
+  document.getElementById('hSpread').textContent = fmt(spread, 2);
+  document.getElementById('hMid').textContent = fmt(mid, 2);
+  document.getElementById('hEx').textContent = `${okCount}/${okCount + errCount}`;
+
+  // Build cumulative
+  const bidCum = [], askCum = [];
+  let c = 0;
+  for (const [p, q] of bids) { c += q; bidCum.push([p, q, c]); }
+  c = 0;
+  for (const [p, q] of asks) { c += q; askCum.push([p, q, c]); }
+
+  const maxCum = Math.max(bidCum.length ? bidCum[bidCum.length-1][2] : 0, askCum.length ? askCum[askCum.length-1][2] : 0);
+
+  // Render tables
+  document.getElementById('bidCount').textContent = `${bids.length} levels`;
+  document.getElementById('askCount').textContent = `${asks.length} levels`;
+
+  const bidsBody = document.getElementById('bidsBody');
+  bidsBody.innerHTML = bidCum.map(([p, q, cum]) => `
+    <tr class="bid-row" style="--depth:${pct(cum, maxCum)}">
+      <td class="price">${fmt(p, 2)}</td>
+      <td class="size">${fmtQty(q)}</td>
+      <td class="cum">${fmtQty(cum)}</td>
+    </tr>`).join('');
+
+  const asksBody = document.getElementById('asksBody');
+  asksBody.innerHTML = askCum.map(([p, q, cum]) => `
+    <tr class="ask-row" style="--depth:${pct(cum, maxCum)}">
+      <td class="price">${fmt(p, 2)}</td>
+      <td class="size">${fmtQty(q)}</td>
+      <td class="cum">${fmtQty(cum)}</td>
+    </tr>`).join('');
+
+  // Exchange breakdown
+  const sorted = [...d.results].sort((a, b) => {
+    if (a.error && !b.error) return 1;
+    if (!a.error && b.error) return -1;
+    return (a.spread.spread || 999) - (b.spread.spread || 999);
+  });
+  document.getElementById('exSummary').textContent = `${okCount} ok · ${errCount} failed · ${d.results.length} total`;
+  document.getElementById('exGrid').innerHTML = sorted.map(ex => ex.error
+    ? `<div class="ex-row error">
+        <span class="ex-name">${ex.exchange}</span>
+        <span class="ex-err">${ex.error}</span>
+       </div>`
+    : `<div class="ex-row">
+        <span class="ex-name">${ex.exchange}</span>
+        <span class="ex-mid">${fmt(ex.spread.mid, 2)}</span>
+        <span class="ex-spread">±${fmt(ex.spread.spread, 4)}</span>
+        <span class="ex-levels">${ex.levels.bids}/${ex.levels.asks}</span>
+       </div>`
+  ).join('');
+
+  // Draw depth chart
+  drawDepth(bidCum, askCum, maxCum, mid);
+}
+
+function drawDepth(bidCum, askCum, maxCum, mid) {
+  const canvas = document.getElementById('depthCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const PAD = { top: 16, right: 40, bottom: 30, left: 60 };
+  const w = W - PAD.left - PAD.right;
+  const h = H - PAD.top - PAD.bottom;
+
+  if (!bidCum.length || !askCum.length) return;
+
+  // Price range: ±3% around mid
+  const range = mid * 0.03;
+  const minP = mid - range, maxP = mid + range;
+
+  function px(price) { return PAD.left + ((price - minP) / (maxP - minP)) * w; }
+  function py(cum) { return PAD.top + h - (cum / maxCum) * h; }
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(30,39,48,0.8)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD.top + (h / 4) * i;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + w, y); ctx.stroke();
+    const label = fmt((maxCum / 4) * (4 - i), 1);
+    ctx.fillStyle = 'rgba(74,85,104,0.8)';
+    ctx.font = '10px IBM Plex Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(label, PAD.left - 6, y + 4);
+  }
+
+  // Filter to range
+  const bidsInRange = bidCum.filter(([p]) => p >= minP);
+  const asksInRange = askCum.filter(([p]) => p <= maxP);
+
+  function drawArea(points, colorLine, colorFill, isBid) {
+    if (!points.length) return;
+    ctx.beginPath();
+    if (isBid) {
+      ctx.moveTo(px(points[0][0]), PAD.top + h);
+      for (const [p,, c] of points) { ctx.lineTo(px(p), py(c)); }
+      ctx.lineTo(px(points[points.length-1][0]), PAD.top + h);
+    } else {
+      ctx.moveTo(px(points[0][0]), PAD.top + h);
+      for (const [p,, c] of points) { ctx.lineTo(px(p), py(c)); }
+      ctx.lineTo(px(points[points.length-1][0]), PAD.top + h);
+    }
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + h);
+    const [r,g,b] = isBid ? [0,230,118] : [255,61,90];
+    grad.addColorStop(0, `rgba(${r},${g},${b},0.18)`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0.02)`);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.beginPath();
+    if (isBid) {
+      for (let i = 0; i < points.length; i++) {
+        const [p,, c] = points[i];
+        i === 0 ? ctx.moveTo(px(p), py(c)) : ctx.lineTo(px(p), py(c));
       }
-      select {
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-        background-position: right 0.5rem center;
-        background-repeat: no-repeat;
-        background-size: 1.5em 1.5em;
-        padding-right: 2.5rem;
-        -webkit-print-color-adjust: exact;
+    } else {
+      for (let i = 0; i < points.length; i++) {
+        const [p,, c] = points[i];
+        i === 0 ? ctx.moveTo(px(p), py(c)) : ctx.lineTo(px(p), py(c));
       }
-    </style>
-  </head>
-  <body class="min-h-screen flex flex-col">
-    <nav class="bg-lcw-panel border-b border-gray-800 p-4 sticky top-0 z-50">
-      <div
-        class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4"
-      >
-        <div class="flex items-center gap-3 w-full md:w-auto">
-          <i class="ph-fill ph-currency-btc text-orange-500 text-3xl"></i>
-          <div>
-            <h1 class="text-xl font-bold tracking-tight">
-              Liquidity Aggregator
-            </h1>
-            <div class="text-xs text-gray-400 flex items-center gap-2">
-              <span
-                id="status-indicator"
-                class="w-2 h-2 rounded-full bg-gray-500"
-              ></span>
-              <span id="status-text">Connecting...</span>
-            </div>
-          </div>
-        </div>
+    }
+    ctx.strokeStyle = colorLine;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
 
-        <!-- Symbol Selector -->
-        <div class="flex items-center gap-2">
-          <select
-            id="symbol-select"
-            onchange="changeSymbol(this.value)"
-            class="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-          >
-            <option value="BTC-USDT">BTC-USDT</option>
-            <option value="ETH-USDT">ETH-USDT</option>
-            <option value="SOL-USDT">SOL-USDT</option>
-            <option value="XRP-USDT">XRP-USDT</option>
-            <option value="BNB-USDT">BNB-USDT</option>
-            <option value="DOGE-USDT">DOGE-USDT</option>
-          </select>
-        </div>
+  drawArea(bidsInRange, '#00e676', null, true);
+  drawArea(asksInRange, '#ff3d5a', null, false);
 
-        <div
-          class="flex gap-4 text-sm font-medium w-full md:w-auto justify-end"
-        >
-          <div class="text-right">
-            <div class="text-gray-400">Avg Price</div>
-            <div class="text-white text-lg" id="global-price">---</div>
-          </div>
-          <div class="text-right">
-            <div class="text-gray-400">Spread</div>
-            <div class="text-lcw-green" id="global-spread">---</div>
-          </div>
-        </div>
-      </div>
-    </nav>
+  // Mid line
+  ctx.beginPath();
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = 'rgba(61,142,240,0.5)';
+  ctx.lineWidth = 1;
+  ctx.moveTo(px(mid), PAD.top);
+  ctx.lineTo(px(mid), PAD.top + h);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(61,142,240,0.9)';
+  ctx.font = '10px IBM Plex Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(fmt(mid, 0), px(mid), PAD.top - 4);
 
-    <main class="container mx-auto p-4 flex-grow space-y-6">
-      <div class="bg-lcw-panel rounded-xl shadow-lg border border-gray-800 p-1">
-        <div
-          class="p-4 border-b border-gray-800 flex justify-between items-center"
-        >
-          <h2 class="font-semibold text-lg flex items-center gap-2">
-            <i class="ph ph-chart-bar"></i>
-            <span id="chart-title">Global Depth</span>
-          </h2>
-          <div class="text-xs text-gray-500" id="last-updated"></div>
-        </div>
-        <div class="p-4 chart-container">
-          <canvas id="depthChart"></canvas>
-        </div>
-      </div>
+  // X-axis price labels
+  ctx.fillStyle = 'rgba(74,85,104,0.8)';
+  ctx.font = '10px IBM Plex Mono, monospace';
+  ctx.textAlign = 'center';
+  const steps = 6;
+  for (let i = 0; i <= steps; i++) {
+    const price = minP + (range * 2 / steps) * i;
+    const x = px(price);
+    ctx.fillText(fmt(price, 0), x, PAD.top + h + 18);
+  }
+}
 
-      <div
-        class="bg-lcw-panel rounded-xl shadow-lg border border-gray-800 overflow-hidden"
-      >
-        <div class="p-4 border-b border-gray-800">
-          <h2 class="font-semibold text-lg flex items-center gap-2">
-            <i class="ph ph-bank"></i> Markets
-          </h2>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead class="bg-gray-800/50 text-gray-400 text-xs uppercase">
-              <tr>
-                <th class="p-4">Exchange</th>
-                <th class="p-4 text-right">Price</th>
-                <th class="p-4 text-right">Spread ($)</th>
-                <th class="p-4 text-right">Spread (%)</th>
-                <th class="p-4 text-right">Liquidity Score</th>
-              </tr>
-            </thead>
-            <tbody
-              id="markets-table-body"
-              class="text-sm divide-y divide-gray-800"
-            >
-              <tr>
-                <td colspan="5" class="p-8 text-center text-gray-500">
-                  Loading data...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </main>
+// Resize redraw
+window.addEventListener('resize', () => { if (currentData) render(currentData, document.getElementById('symbolInput').value); });
 
-    <script>
-      let chartInstance = null;
+// Enter key
+document.getElementById('symbolInput').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
 
-      // Get symbol from URL or default to BTC-USDT
-      const urlParams = new URLSearchParams(window.location.search);
-      const currentSymbol = urlParams.get("symbol") || "BTC-USDT";
-
-      // Update UI based on symbol
-      const selector = document.getElementById("symbol-select");
-      if (![...selector.options].some((o) => o.value === currentSymbol)) {
-        const opt = document.createElement("option");
-        opt.value = currentSymbol;
-        opt.text = currentSymbol;
-        selector.add(opt);
-      }
-      selector.value = currentSymbol;
-      document.getElementById("chart-title").innerText =
-        `${currentSymbol} Depth`;
-
-      function changeSymbol(newSymbol) {
-        window.location.search = `?symbol=${newSymbol}`;
-      }
-
-      async function fetchData() {
-        updateStatus("Fetching API...", "bg-blue-500", "text-blue-500");
-
-        try {
-          // Fetch directly from the backend API
-          const resp = await fetch(
-            `https://crypto-order-book-hnt1.onrender.com/api/v1/book?symbol=${currentSymbol}&limit=100`,
-          );
-
-          if (!resp.ok) throw new Error("API Error: " + resp.status);
-
-          const data = await resp.json();
-
-          updateStatus(
-            "Live Connected",
-            "bg-lcw-green shadow-[0_0_10px_#00d092]",
-            "text-lcw-green",
-          );
-
-          const date = new Date(data.timestamp);
-          document.getElementById("last-updated").innerText =
-            `Updated: ${date.toLocaleTimeString()}`;
-
-          processAndRender(data);
-        } catch (error) {
-          console.error(error);
-          updateStatus("Connection Lost", "bg-red-500", "text-red-500");
-        }
-      }
-
-      function updateStatus(text, dotClass, textClass) {
-        document.getElementById("status-indicator").className =
-          `w-2 h-2 rounded-full ${dotClass}`;
-        const txt = document.getElementById("status-text");
-        txt.innerText = text;
-        txt.className = `font-medium ${textClass}`;
-      }
-
-      function processAndRender(payload) {
-        const { bids, asks } = aggregateGlobalBook(payload.results);
-        updateChart(bids, asks);
-        updateTable(payload.results);
-        updateGlobalStats(payload.results);
-      }
-
-      function aggregateGlobalBook(results) {
-        let allBids = [];
-        let allAsks = [];
-        results.forEach((ex) => {
-          if (ex.data) {
-            ex.data.forEach((point) => {
-              if (point.bidCum)
-                allBids.push({ price: point.price, qty: point.qty });
-              if (point.askCum)
-                allAsks.push({ price: point.price, qty: point.qty });
-            });
-          }
-        });
-
-        allBids.sort((a, b) => b.price - a.price);
-        allAsks.sort((a, b) => a.price - b.price);
-
-        const processedBids = [];
-        let bidCum = 0;
-        // Limit points for chart performance
-        for (let i = 0; i < Math.min(allBids.length, 600); i++) {
-          bidCum += allBids[i].qty;
-          processedBids.push({ x: allBids[i].price, y: bidCum });
-        }
-
-        const processedAsks = [];
-        let askCum = 0;
-        for (let i = 0; i < Math.min(allAsks.length, 600); i++) {
-          askCum += allAsks[i].qty;
-          processedAsks.push({ x: allAsks[i].price, y: askCum });
-        }
-        processedBids.reverse();
-        return { bids: processedBids, asks: processedAsks };
-      }
-
-      function updateChart(bids, asks) {
-        const ctx = document.getElementById("depthChart").getContext("2d");
-        if (chartInstance) chartInstance.destroy();
-
-        chartInstance = new Chart(ctx, {
-          type: "line",
-          data: {
-            datasets: [
-              {
-                label: "Bids",
-                data: bids,
-                borderColor: "#00d092",
-                backgroundColor: "rgba(0, 208, 146, 0.2)",
-                fill: true,
-                pointRadius: 0,
-                borderWidth: 2,
-              },
-              {
-                label: "Asks",
-                data: asks,
-                borderColor: "#ff4949",
-                backgroundColor: "rgba(255, 73, 73, 0.2)",
-                fill: true,
-                pointRadius: 0,
-                borderWidth: 2,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { intersect: false, mode: "index" },
-            animation: false, // Disable animation for faster updates
-            scales: {
-              x: {
-                type: "linear",
-                grid: { color: "#2d3748" },
-                ticks: { color: "#a0aec0" },
-              },
-              y: { grid: { color: "#2d3748" }, ticks: { color: "#a0aec0" } },
-            },
-            plugins: { legend: { display: false } },
-          },
-        });
-      }
-
-      function updateTable(results) {
-        const tbody = document.getElementById("markets-table-body");
-        tbody.innerHTML = "";
-        const validResults = results
-          .filter((r) => !r.error && r.spread)
-          .sort((a, b) => a.spread.spread - b.spread.spread);
-
-        if (validResults.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-500">No valid market data found.</td></tr>`;
-          return;
-        }
-
-        validResults.forEach((r) => {
-          const spreadPct = (r.spread.spread / r.spread.best_ask) * 100;
-          let spreadColor =
-            spreadPct < 0.05
-              ? "text-lcw-green"
-              : spreadPct > 0.5
-                ? "text-red-400"
-                : "text-gray-300";
-          const liquidity = r.data.reduce((sum, item) => sum + item.qty, 0);
-
-          const row = `
-                    <tr class="hover:bg-gray-800/50 transition">
-                        <td class="p-4 flex items-center gap-3">
-                            <div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-[10px] text-white">${r.exchange.substring(0, 2).toUpperCase()}</div>
-                            <span class="font-medium text-white">${r.exchange}</span>
-                        </td>
-                        <td class="p-4 text-right font-mono text-white">$${r.spread.best_ask.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td class="p-4 text-right font-mono text-gray-400">$${r.spread.spread.toFixed(2)}</td>
-                        <td class="p-4 text-right font-mono ${spreadColor}">${spreadPct.toFixed(3)}%</td>
-                        <td class="p-4 text-right font-mono text-gray-500">${liquidity.toFixed(2)}</td>
-                    </tr>
-                `;
-          tbody.insertAdjacentHTML("beforeend", row);
-        });
-      }
-
-      function updateGlobalStats(results) {
-        const valid = results.filter((r) => !r.error && r.spread);
-        if (valid.length === 0) return;
-
-        const avgPrice =
-          valid.reduce((acc, curr) => acc + curr.spread.mid, 0) / valid.length;
-        document.getElementById("global-price").innerText =
-          "$" +
-          avgPrice.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
-
-        const highestBid = Math.max(...valid.map((r) => r.spread.best_bid));
-        const lowestAsk = Math.min(...valid.map((r) => r.spread.best_ask));
-        const globalSpread = lowestAsk - highestBid;
-
-        const spreadEl = document.getElementById("global-spread");
-        spreadEl.innerText = "$" + globalSpread.toFixed(2);
-        spreadEl.className =
-          globalSpread < 0 ? "text-orange-400" : "text-lcw-green";
-      }
-
-      fetchData();
-      // Refresh every 5 seconds
-      setInterval(fetchData, 5000);
-    </script>
-  </body>
+// Initial load
+load();
+</script>
+</body>
 </html>
