@@ -292,19 +292,81 @@ function setZoom(z) {
 
 /* ── Fetch ──────────────────────────────────────────────── */
 async function load() {
-  const raw = document.getElementById('symbolInput').value.trim().toUpperCase()||'BTC';
-  const sym = raw.includes('-') ? raw : raw+'-USDT';
-  document.getElementById('symbolLabel').textContent = sym;
+  const raw = document.getElementById('symbolInput').value.trim().toUpperCase() || 'BTC';
+  // Binance uses BTCUSDT, BTCUSDC, etc. Assume USDT pair.
+  const symbol = raw.includes('USDT') ? raw : raw + 'USDT';
+  document.getElementById('symbolLabel').textContent = symbol;
   document.getElementById('fetchBtn').disabled = true;
   document.getElementById('liveDot').className = 'dot';
   document.getElementById('lastUpdate').textContent = 'loading…';
+
   try {
-    const r = await fetch(`${API}?symbol=${encodeURIComponent(raw)}&limit=100`);
-    const d = await r.json();
-    currentData = d;
-    render(d, sym);
-  } catch(e) {
-    document.getElementById('lastUpdate').textContent = 'error: '+e.message;
+    // Fetch depth from Binance (public, CORS enabled)
+    const url = `https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=100`;
+    const response = await fetch(url);
+    const binanceData = await response.json();
+
+    // Transform Binance response to the format expected by render()
+    const bids = binanceData.bids.map(([price, qty]) => ({
+      price: parseFloat(price),
+      qty: parseFloat(qty)
+    }));
+    const asks = binanceData.asks.map(([price, qty]) => ({
+      price: parseFloat(price),
+      qty: parseFloat(qty)
+    }));
+
+    // Sort bids descending, asks ascending
+    bids.sort((a, b) => b.price - a.price);
+    asks.sort((a, b) => a.price - b.price);
+
+    // Calculate cumulative USD for bids (from highest down)
+    let cumBid = 0;
+    bids.forEach(b => {
+      cumBid += b.price * b.qty;
+      b.bidCum = cumBid;
+    });
+
+    // Calculate cumulative USD for asks (from lowest up)
+    let cumAsk = 0;
+    asks.forEach(a => {
+      cumAsk += a.price * a.qty;
+      a.askCum = cumAsk;
+    });
+
+    // Combine into the expected structure
+    const bestBid = bids.length ? bids[0].price : 0;
+    const bestAsk = asks.length ? asks[0].price : 0;
+    const mid = (bestBid + bestAsk) / 2;
+    const spread = bestAsk - bestBid;
+
+    const d = {
+      timestamp: Date.now(),
+      results: [
+        {
+          exchange: "Binance",
+          spread: {
+            best_bid: bestBid,
+            best_ask: bestAsk,
+            mid: mid,
+            spread: spread
+          },
+          levels: {
+            bids: bids.length,
+            asks: asks.length
+          },
+          data: [
+            ...bids.map(b => ({ price: b.price, qty: b.qty, bidCum: b.bidCum })),
+            ...asks.map(a => ({ price: a.price, qty: a.qty, askCum: a.askCum }))
+          ]
+        }
+      ]
+    };
+
+    render(d, symbol);
+  } catch (e) {
+    document.getElementById('lastUpdate').textContent = 'error: ' + e.message;
+    console.error(e);
   } finally {
     document.getElementById('fetchBtn').disabled = false;
   }
