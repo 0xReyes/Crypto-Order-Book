@@ -19,8 +19,7 @@ import (
 type SymbolFormat int
 
 const (
-	FormatNoSep
-	SymbolFormat = iota
+    FormatNoSep           SymbolFormat = iota // 0 → BTCUSDT
 	FormatDash
 	FormatUnderscore
 	FormatLower
