@@ -13,7 +13,7 @@ env:
 jobs:
   test-and-deploy-kind:
     runs-on: ubuntu-latest
-    timeout-minutes: 350      # free tier max (6h)
+    timeout-minutes: 5      # free tier max (6h)
 
     steps:
       - name: Checkout
