@@ -39,13 +39,16 @@ jobs:
       - name: Load image into kind
         run: kind load docker-image crypto-dashboard:ci --name chart-testing
 
+      - name: Create namespace
+        run: kubectl apply -f namespace.yaml   # no || true – fail if can't create
+
       - name: Deploy secrets (for testing)
         run: |
           cat <<EOF | kubectl apply -f -
           apiVersion: v1
           kind: Secret
           metadata:
-            name: crypto-dashboard-secrets   # ← changed to match Deployment
+            name: crypto-dashboard-secrets
             namespace: crypto-dashboard
           type: Opaque
           stringData:
@@ -54,15 +57,10 @@ jobs:
             API_PASS: "testpass123"
           EOF
 
-      - name: Create namespace
-        run: kubectl apply -f namespace.yaml   # no || true – fail if can't create
-
-      - name: Deploy manifests
+      - name: Deploy other manifests
         run: |
-          kubectl apply -f deployment.yaml -n crypto-dashboard || true
-          kubectl apply -f service.yaml -n crypto-dashboard || true
-
-          # Override image tag to the one loaded in kind
+          kubectl apply -f deployment.yaml -n crypto-dashboard
+          kubectl apply -f service.yaml -n crypto-dashboard
           kubectl set image deployment/crypto-dashboard dashboard=crypto-dashboard:ci -n crypto-dashboard
 
       - name: Wait for rollout & verify
