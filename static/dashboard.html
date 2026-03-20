@@ -283,7 +283,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   fetchCoinList();
   loadAll();
-  poll = setInterval(loadAll, 10000);
+  poll = setInterval(loadAll, 100000);
 });
 
 function setStatus(state, text) {
