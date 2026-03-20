@@ -56,8 +56,8 @@ jobs:
       - name: Deploy manifests
         run: |
           kubectl apply -f namespace.yaml || true
-          kubectl apply -f deployment.yaml
-          kubectl apply -f service.yaml
+          kubectl apply -f deployment.yaml -n crypto-dashboard || true
+          kubectl apply -f service.yaml -n crypto-dashboard || true
 
       - name: Wait for rollout & verify
         run: |
