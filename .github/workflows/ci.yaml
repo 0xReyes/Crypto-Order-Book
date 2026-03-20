@@ -45,7 +45,8 @@ jobs:
           apiVersion: v1
           kind: Secret
           metadata:
-            name: crypto-dashboard-secrets
+            name: crypto-dashboard-secrets   # ← changed to match Deployment
+            namespace: crypto-dashboard
           type: Opaque
           stringData:
             JWT_SECRET: "kind-test-secret-1234567890"
