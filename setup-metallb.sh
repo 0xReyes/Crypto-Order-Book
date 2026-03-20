@@ -45,9 +45,25 @@ if [[ -n "${1:-}" ]]; then
   LAST=$(echo "$START_IP" | cut -d. -f4)
   END_IP="${BASE}.$((LAST + 50))"
 else
-  # Auto-detect from Kind's Docker network
+  # Auto-detect from Kind's Docker network (must find IPv4, not IPv6)
   echo "→ Detecting Kind network subnet..."
-  KIND_SUBNET=$(docker network inspect kind -f '{{(index .IPAM.Config 0).Subnet}}' 2>/dev/null || echo "172.18.0.0/16")
+  KIND_SUBNET=""
+  # Kind network may have multiple IPAM configs (IPv4 + IPv6). Find the IPv4 one.
+  for i in 0 1 2; do
+    CANDIDATE=$(docker network inspect kind -f "{{(index .IPAM.Config $i).Subnet}}" 2>/dev/null || true)
+    # IPv4 contains dots, IPv6 contains colons
+    if [[ "$CANDIDATE" == *.* ]]; then
+      KIND_SUBNET="$CANDIDATE"
+      break
+    fi
+  done
+
+  if [[ -z "$KIND_SUBNET" ]]; then
+    echo "⚠️  Could not detect IPv4 subnet — using default 172.18.0.0/16"
+    KIND_SUBNET="172.18.0.0/16"
+  fi
+
+  echo "   Detected subnet: $KIND_SUBNET"
   BASE=$(echo "$KIND_SUBNET" | cut -d. -f1-2)
   START_IP="${BASE}.255.200"
   END_IP="${BASE}.255.250"
