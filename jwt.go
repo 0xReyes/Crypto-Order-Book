@@ -14,14 +14,11 @@ var (
 	ErrExpiredToken = errors.New("token expired")
 )
 
-// Claims holds JWT payload data.
 type Claims struct {
 	UserID string `json:"user_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
-// getSecret reads JWT_SECRET from env; falls back to a dev-only default.
-// NEVER use the fallback in production — set the env var.
 func getSecret() []byte {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -30,7 +27,6 @@ func getSecret() []byte {
 	return []byte(secret)
 }
 
-// GenerateToken creates a signed JWT valid for the given duration.
 func GenerateToken(userID string, duration time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
@@ -46,7 +42,6 @@ func GenerateToken(userID string, duration time.Duration) (string, error) {
 	return token.SignedString(getSecret())
 }
 
-// ValidateToken parses the raw JWT string and returns the claims if valid.
 func ValidateToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

@@ -16,20 +16,18 @@ import (
 	"time"
 )
 
-// --- Configuration ---
-
 type SymbolFormat int
 
 const (
-	FormatNoSep           SymbolFormat = iota // BTCUSDT
-	FormatDash                                // BTC-USDT
-	FormatUnderscore                          // BTC_USDT
-	FormatLower                               // btcusdt
-	FormatLowerDash                           // btc-usdt
-	FormatLowerUnderscore                     // btc_usdt
-	FormatSlash                               // BTC/USDT
-	FormatKraken                              // XBT mapping
-	FormatBitfinex                            // tBTCUST
+	FormatNoSep           SymbolFormat = iota
+	FormatDash
+	FormatUnderscore
+	FormatLower
+	FormatLowerDash
+	FormatLowerUnderscore
+	FormatSlash
+	FormatKraken
+	FormatBitfinex
 )
 
 var defaultQuotes = []string{"USDT", "USDC", "USD"}
@@ -75,8 +73,6 @@ var exchangeConfigs = []ExchangeConfig{
 	{Name: "Toobit", URLTemplate: "https://api.toobit.com/quote/v1/depth?symbol=%s&limit=50", PathBids: "b", PathAsks: "a", SymbolFormat: FormatNoSep},
 }
 
-// --- Data Structures ---
-
 type OrderPoint struct {
 	Price  float64  `json:"price"`
 	Qty    float64  `json:"qty"`
@@ -114,7 +110,7 @@ type APIResponse struct {
 func main() {
 	dirFlag := flag.String("dir", "", "Output directory for snapshot mode")
 	fileFlag := flag.String("file", "data.json", "Output filename within --dir")
-	symbolFlag := flag.String("symbol", "BTC", "Base asset symbol (e.g. BTC, ETH)")
+	symbolFlag := flag.String("symbol", "BTC", "Base asset symbol")
 	portFlag := flag.String("port", "", "HTTP server port (overrides PORT env)")
 	flag.Parse()
 
@@ -133,35 +129,41 @@ func main() {
 	runServer(port)
 }
 
-// --- Server Mode ---
-
 func runServer(port string) {
-	// Rate limiter: 10 requests/sec sustained, burst of 30
 	rl := NewRateLimiter(10, 30)
 
-	// --- Static files (no auth, rate-limited) ---
-	fsHandler := http.FileServer(http.Dir("./static"))
-	http.Handle("/", fsHandler)
+	// --- Page routes ---
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	})
+	http.HandleFunc("/login", serveFile("./static/login.html"))
+	http.HandleFunc("/dashboard", serveFile("./static/dashboard.html"))
 
-	// --- Public routes (rate-limited, no auth) ---
+	// --- Public API ---
 	http.HandleFunc("/api/v1/health", RateLimitMiddleware(rl, handleHealth))
-
-	// --- Login: issues JWT tokens (rate-limited, no auth) ---
 	http.HandleFunc("/api/v1/login", RateLimitMiddleware(rl, handleLogin))
 
-	// --- Protected API routes (rate-limited + JWT auth) ---
+	// --- Protected API ---
 	http.HandleFunc("/api/v1/book", ProtectedRoute(rl, handleDepth))
 	http.HandleFunc("/api/v1/price", ProtectedRoute(rl, handlePrice))
 	http.HandleFunc("/api/v1/dominance", ProtectedRoute(rl, handleDominance))
 
 	fmt.Printf("🚀 Server running on port %s\n", port)
-	fmt.Printf("   Rate limit: 10 req/s per IP, burst 30\n")
-	fmt.Printf("   Auth: Bearer JWT on /api/v1/{book,price,dominance}\n")
-	fmt.Printf("   Login: POST /api/v1/login {\"user\":\"...\",\"pass\":\"...\"}\n")
+	fmt.Printf("   GET /login     → Login page\n")
+	fmt.Printf("   GET /dashboard → Dashboard (requires JWT)\n")
+	fmt.Printf("   POST /api/v1/login → Get token\n")
 	log.Fatal(http.ListenAndServe("0.0.0.0:"+port, nil))
 }
 
-// --- Auth handlers ---
+func serveFile(path string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, path)
+	}
+}
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -171,10 +173,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Read credentials from JSON body or query params
-	user := ""
-	pass := ""
-
+	user, pass := "", ""
 	if r.Method == http.MethodPost {
 		var body struct {
 			User string `json:"user"`
@@ -189,11 +188,6 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		pass = r.URL.Query().Get("pass")
 	}
 
-	// -------------------------------------------------------
-	// Credential check — replace with your own logic
-	// Default: read from env vars API_USER / API_PASS
-	// Falls back to demo/demo for local dev
-	// -------------------------------------------------------
 	wantUser := os.Getenv("API_USER")
 	if wantUser == "" {
 		wantUser = "demo"
@@ -208,7 +202,6 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Issue a 24-hour token
 	token, err := GenerateToken(user, 24*time.Hour)
 	if err != nil {
 		http.Error(w, `{"error":"Failed to generate token"}`, http.StatusInternalServerError)
@@ -222,12 +215,9 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Data handlers ---
-
 func handlePrice(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
-
 	symbol := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("symbol")))
 	if symbol == "" {
 		symbol = "bitcoin"
@@ -236,17 +226,13 @@ func handlePrice(w http.ResponseWriter, r *http.Request) {
 	if days == "" {
 		days = "7"
 	}
-
-	url := fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s/market_chart?vs_currency=usd&days=%s", symbol, days)
-	proxyGet(w, url)
+	proxyGet(w, fmt.Sprintf("https://api.coingecko.com/api/v3/coins/%s/market_chart?vs_currency=usd&days=%s", symbol, days))
 }
 
 func handleDominance(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
-
-	url := "https://api.coingecko.com/api/v3/global"
-	proxyGet(w, url)
+	proxyGet(w, "https://api.coingecko.com/api/v3/global")
 }
 
 func proxyGet(w http.ResponseWriter, url string) {
@@ -264,7 +250,6 @@ func proxyGet(w http.ResponseWriter, url string) {
 func handleDepth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
-
 	query := r.URL.Query()
 	base := strings.ToUpper(strings.TrimSpace(query.Get("symbol")))
 	if base == "" {
@@ -273,182 +258,122 @@ func handleDepth(w http.ResponseWriter, r *http.Request) {
 	if i := strings.IndexAny(base, "-_/"); i > 0 {
 		base = base[:i]
 	}
-
-	payload := fetchAll(base)
-	json.NewEncoder(w).Encode(payload)
+	json.NewEncoder(w).Encode(fetchAll(base))
 }
-
-// --- CLI Snapshot Mode ---
 
 func runSnapshot(dir, file, base string) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		log.Fatalf("❌ Failed to create output dir %q: %v", dir, err)
+		log.Fatalf("Failed to create output dir %q: %v", dir, err)
 	}
-
 	base = strings.ToUpper(strings.TrimSpace(base))
 	if i := strings.IndexAny(base, "-_/"); i > 0 {
 		base = base[:i]
 	}
-
-	fmt.Printf("📸 Fetching order books for %s across all quote currencies\n", base)
 	payload := fetchAll(base)
-
 	outPath := filepath.Join(dir, file)
 	f, err := os.Create(outPath)
 	if err != nil {
-		log.Fatalf("❌ Failed to create output file %q: %v", outPath, err)
+		log.Fatalf("Failed to create %q: %v", outPath, err)
 	}
 	defer f.Close()
-
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(payload); err != nil {
-		log.Fatalf("❌ Failed to write JSON: %v", err)
-	}
-
+	enc.Encode(payload)
 	ok := 0
 	for _, r := range payload.Results {
 		if r.Error == "" {
 			ok++
 		}
 	}
-	fmt.Printf("✅ Wrote %s  (%d exchanges with data)\n", outPath, ok)
+	fmt.Printf("Wrote %s (%d exchanges)\n", outPath, ok)
 }
-
-// --- Shared Fetch Logic ---
 
 func fetchAll(base string) APIResponse {
 	start := time.Now()
-
 	type result struct {
 		resp  ExchangeResponse
 		quote string
 		rank  int
 	}
-
 	var wg sync.WaitGroup
-	resultsChan := make(chan result, len(exchangeConfigs)*len(defaultQuotes))
-
+	ch := make(chan result, len(exchangeConfigs)*len(defaultQuotes))
 	for _, cfg := range exchangeConfigs {
 		quotes := defaultQuotes
 		if len(cfg.Quotes) > 0 {
 			quotes = cfg.Quotes
 		}
-
 		for rank, quote := range quotes {
 			wg.Add(1)
 			go func(c ExchangeConfig, q string, r int) {
 				defer wg.Done()
-				pair := base + "-" + q
-				t0 := time.Now()
-				fmt.Printf("→ [%s] trying %s\n", c.Name, pair)
-				resp := fetchOne(c, base, q)
-				elapsed := time.Since(t0)
-				if resp.Error != "" {
-					fmt.Printf("  ✗ [%s] %s failed (%s): %s\n", c.Name, pair, elapsed.Round(time.Millisecond), resp.Error)
-				} else {
-					fmt.Printf("  ✓ [%s] %s OK (%s) — %d bids, %d asks, spread=%.2f\n",
-						c.Name, pair, elapsed.Round(time.Millisecond), resp.Levels.Bids, resp.Levels.Asks, resp.Spread.Spread)
-				}
-				resultsChan <- result{resp: resp, quote: q, rank: r}
+				ch <- result{resp: fetchOne(c, base, q), quote: q, rank: r}
 			}(cfg, quote, rank)
 		}
 	}
-
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
+	go func() { wg.Wait(); close(ch) }()
 
 	type best struct {
 		resp ExchangeResponse
 		rank int
 	}
-	bestMap := make(map[string]best)
-
-	for res := range resultsChan {
+	bm := make(map[string]best)
+	for res := range ch {
 		if res.resp.Error != "" {
 			continue
 		}
-		existing, exists := bestMap[res.resp.Exchange]
-		if !exists || res.rank < existing.rank {
-			bestMap[res.resp.Exchange] = best{resp: res.resp, rank: res.rank}
+		if ex, ok := bm[res.resp.Exchange]; !ok || res.rank < ex.rank {
+			bm[res.resp.Exchange] = best{resp: res.resp, rank: res.rank}
 		}
 	}
-
-	responses := make([]ExchangeResponse, 0, len(bestMap))
-	for _, b := range bestMap {
+	responses := make([]ExchangeResponse, 0, len(bm))
+	for _, b := range bm {
 		responses = append(responses, b.resp)
 	}
-	sort.Slice(responses, func(i, j int) bool {
-		return responses[i].Exchange < responses[j].Exchange
-	})
-
-	fmt.Printf("\n📊 Summary: %d/%d exchanges returned data (%.1fs)\n", len(responses), len(exchangeConfigs), time.Since(start).Seconds())
-	for _, r := range responses {
-		fmt.Printf("   %s → %s (mid=%.2f)\n", r.Exchange, r.Pair, r.Spread.Mid)
-	}
-
-	return APIResponse{
-		Symbol:    base,
-		Timestamp: start.UnixMilli(),
-		Results:   responses,
-	}
+	sort.Slice(responses, func(i, j int) bool { return responses[i].Exchange < responses[j].Exchange })
+	return APIResponse{Symbol: base, Timestamp: start.UnixMilli(), Results: responses}
 }
 
 func fetchOne(cfg ExchangeConfig, base, quote string) ExchangeResponse {
 	pair := base + "-" + quote
-	formattedSymbol := formatSymbol(pair, cfg.SymbolFormat, cfg.QuoteMap)
-
+	sym := formatSymbol(pair, cfg.SymbolFormat, cfg.QuoteMap)
 	var url string
 	if strings.Contains(cfg.URLTemplate, "%s") {
-		url = fmt.Sprintf(cfg.URLTemplate, formattedSymbol)
+		url = fmt.Sprintf(cfg.URLTemplate, sym)
 	} else {
 		url = cfg.URLTemplate
 	}
-
 	client := http.Client{Timeout: 6 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
 		return ExchangeResponse{Exchange: cfg.Name, Pair: pair, Error: err.Error()}
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != 200 {
 		return ExchangeResponse{Exchange: cfg.Name, Pair: pair, Error: fmt.Sprintf("HTTP %d", resp.StatusCode)}
 	}
-
 	var raw interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return ExchangeResponse{Exchange: cfg.Name, Pair: pair, Error: "JSON decode error"}
 	}
-
 	if cfg.Name == "Bitfinex" {
 		return parseBitfinex(raw, pair)
 	}
-
 	bidsRaw := traverseMap(raw, cfg.PathBids)
 	asksRaw := traverseMap(raw, cfg.PathAsks)
-
 	if bidsRaw == nil || asksRaw == nil {
 		return ExchangeResponse{Exchange: cfg.Name, Pair: pair, Error: "path not found"}
 	}
-
 	if cfg.FlatArray {
 		bidsRaw = unflattenPairs(bidsRaw)
 		asksRaw = unflattenPairs(asksRaw)
 	}
-
 	bids := normalizePoints(bidsRaw)
 	asks := normalizePoints(asksRaw)
-
 	if len(bids) == 0 || len(asks) == 0 {
 		return ExchangeResponse{Exchange: cfg.Name, Pair: pair, Error: "no liquidity"}
 	}
-
 	sort.Slice(bids, func(i, j int) bool { return bids[i].Price > bids[j].Price })
 	sort.Slice(asks, func(i, j int) bool { return asks[i].Price < asks[j].Price })
-
 	var data []OrderPoint
 	cumBid := 0.0
 	for _, p := range bids {
@@ -462,25 +387,12 @@ func fetchOne(cfg ExchangeConfig, base, quote string) ExchangeResponse {
 		cp := cumAsk
 		data = append(data, OrderPoint{Price: p.Price, Qty: p.Qty, AskCum: &cp})
 	}
-
-	bestBid := bids[0].Price
-	bestAsk := asks[0].Price
-
 	return ExchangeResponse{
-		Exchange: cfg.Name,
-		Pair:     pair,
-		Data:     data,
-		Levels:   LevelCount{Bids: len(bids), Asks: len(asks)},
-		Spread: SpreadData{
-			BestBid: bestBid,
-			BestAsk: bestAsk,
-			Spread:  bestAsk - bestBid,
-			Mid:     (bestAsk + bestBid) / 2,
-		},
+		Exchange: cfg.Name, Pair: pair, Data: data,
+		Levels: LevelCount{Bids: len(bids), Asks: len(asks)},
+		Spread: SpreadData{BestBid: bids[0].Price, BestAsk: asks[0].Price, Spread: asks[0].Price - bids[0].Price, Mid: (asks[0].Price + bids[0].Price) / 2},
 	}
 }
-
-// --- Symbol Formatting ---
 
 func formatSymbol(pair string, format SymbolFormat, quoteMap map[string]string) string {
 	parts := strings.Split(strings.ToUpper(pair), "-")
@@ -488,17 +400,14 @@ func formatSymbol(pair string, format SymbolFormat, quoteMap map[string]string) 
 		return pair
 	}
 	base, quote := parts[0], parts[1]
-
 	if quoteMap != nil {
-		if mapped, ok := quoteMap[quote]; ok {
-			quote = mapped
+		if m, ok := quoteMap[quote]; ok {
+			quote = m
 		}
 	}
-
 	if format == FormatKraken && base == "BTC" {
 		base = "XBT"
 	}
-
 	switch format {
 	case FormatNoSep:
 		return base + quote
@@ -522,14 +431,11 @@ func formatSymbol(pair string, format SymbolFormat, quoteMap map[string]string) 
 	return base + quote
 }
 
-// --- Bitfinex parser ---
-
 func parseBitfinex(raw interface{}, pair string) ExchangeResponse {
 	list, ok := raw.([]interface{})
 	if !ok {
 		return ExchangeResponse{Exchange: "Bitfinex", Pair: pair, Error: "unexpected format"}
 	}
-
 	var bids, asks []OrderPoint
 	for _, item := range list {
 		arr, ok := item.([]interface{})
@@ -543,47 +449,33 @@ func parseBitfinex(raw interface{}, pair string) ExchangeResponse {
 		}
 		if amount > 0 {
 			bids = append(bids, OrderPoint{Price: price, Qty: amount})
-		} else if amount < 0 {
+		} else {
 			asks = append(asks, OrderPoint{Price: price, Qty: -amount})
 		}
 	}
-
 	if len(bids) == 0 || len(asks) == 0 {
 		return ExchangeResponse{Exchange: "Bitfinex", Pair: pair, Error: "no liquidity"}
 	}
-
 	sort.Slice(bids, func(i, j int) bool { return bids[i].Price > bids[j].Price })
 	sort.Slice(asks, func(i, j int) bool { return asks[i].Price < asks[j].Price })
-
 	var data []OrderPoint
-	cumBid := 0.0
+	cum := 0.0
 	for _, p := range bids {
-		cumBid += p.Qty
-		cp := cumBid
-		data = append(data, OrderPoint{Price: p.Price, Qty: p.Qty, BidCum: &cp})
+		cum += p.Qty
+		c := cum
+		data = append(data, OrderPoint{Price: p.Price, Qty: p.Qty, BidCum: &c})
 	}
-	cumAsk := 0.0
+	cum = 0
 	for _, p := range asks {
-		cumAsk += p.Qty
-		cp := cumAsk
-		data = append(data, OrderPoint{Price: p.Price, Qty: p.Qty, AskCum: &cp})
+		cum += p.Qty
+		c := cum
+		data = append(data, OrderPoint{Price: p.Price, Qty: p.Qty, AskCum: &c})
 	}
-
-	return ExchangeResponse{
-		Exchange: "Bitfinex",
-		Pair:     pair,
-		Data:     data,
-		Levels:   LevelCount{Bids: len(bids), Asks: len(asks)},
-		Spread: SpreadData{
-			BestBid: bids[0].Price,
-			BestAsk: asks[0].Price,
-			Spread:  asks[0].Price - bids[0].Price,
-			Mid:     (asks[0].Price + bids[0].Price) / 2,
-		},
+	return ExchangeResponse{Exchange: "Bitfinex", Pair: pair, Data: data,
+		Levels: LevelCount{Bids: len(bids), Asks: len(asks)},
+		Spread: SpreadData{BestBid: bids[0].Price, BestAsk: asks[0].Price, Spread: asks[0].Price - bids[0].Price, Mid: (asks[0].Price + bids[0].Price) / 2},
 	}
 }
-
-// --- Helpers ---
 
 func unflattenPairs(raw interface{}) interface{} {
 	list, ok := raw.([]interface{})
@@ -607,31 +499,24 @@ func traverseMap(data interface{}, path string) interface{} {
 		if current == nil {
 			return nil
 		}
-		if sliceData, ok := current.([]interface{}); ok {
-			index, err := strconv.Atoi(key)
-			if err == nil && index >= 0 && index < len(sliceData) {
-				current = sliceData[index]
+		if s, ok := current.([]interface{}); ok {
+			idx, err := strconv.Atoi(key)
+			if err == nil && idx >= 0 && idx < len(s) {
+				current = s[idx]
 				continue
 			}
 			return nil
 		}
-		if mapData, ok := current.(map[string]interface{}); ok {
+		if m, ok := current.(map[string]interface{}); ok {
 			if key == "*" {
-				found := false
-				for _, v := range mapData {
+				for _, v := range m {
 					current = v
-					found = true
 					break
 				}
-				if !found {
-					return nil
-				}
-			} else {
-				val, exists := mapData[key]
-				if !exists {
-					return nil
-				}
+			} else if val, exists := m[key]; exists {
 				current = val
+			} else {
+				return nil
 			}
 		} else {
 			return nil
@@ -641,26 +526,25 @@ func traverseMap(data interface{}, path string) interface{} {
 }
 
 func normalizePoints(raw interface{}) []OrderPoint {
-	var points []OrderPoint
 	list, ok := raw.([]interface{})
 	if !ok {
-		return points
+		return nil
 	}
+	var pts []OrderPoint
 	for _, item := range list {
 		var p, q float64
 		if arr, ok := item.([]interface{}); ok && len(arr) >= 2 {
-			p = toFloat(arr[0])
-			q = toFloat(arr[1])
+			p, q = toFloat(arr[0]), toFloat(arr[1])
 		}
 		if obj, ok := item.(map[string]interface{}); ok {
 			p = getFloatFromMap(obj, "price", "p", "px", "bid", "ask", "bid_price", "ask_price", "rate", "limit_price")
 			q = getFloatFromMap(obj, "amount", "size", "quantity", "q", "vol", "volume", "bid_size", "ask_size")
 		}
 		if p > 0 && q > 0 {
-			points = append(points, OrderPoint{Price: p, Qty: q})
+			pts = append(pts, OrderPoint{Price: p, Qty: q})
 		}
 	}
-	return points
+	return pts
 }
 
 func toFloat(v interface{}) float64 {

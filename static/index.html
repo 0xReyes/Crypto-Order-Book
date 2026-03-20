@@ -3,393 +3,304 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crypto Dashboard</title>
+<title>Pine Coin Dashboard</title>
+<link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%233a414c'/%3E%3Cstop offset='50%25' stop-color='%23181a20'/%3E%3Cstop offset='100%25' stop-color='%230b0e11'/%3E%3C/linearGradient%3E%3ClinearGradient id='gl' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='rgba(255,255,255,0.5)'/%3E%3Cstop offset='100%25' stop-color='rgba(255,255,255,0)'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23bg)' stroke='%23fcd535' stroke-width='4' stroke-linejoin='round' d='M50 10 L70 30 L60 40 L75 55 L60 65 L70 80 L50 95 L30 80 L40 65 L25 55 L40 40 L30 30 Z'/%3E%3Cpath fill='url(%23gl)' d='M50 10 L30 30 L40 40 L25 55 L40 65 L30 80 L50 95 Z'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg-primary: #141518;
-    --bg-secondary: #1b1c22;
-    --bg-tertiary: #23242b;
-    --bg-card: #1e1f26;
-    --border: #2a2b33;
-    --text-primary: #e8e9ed;
-    --text-secondary: #8a8d98;
-    --text-muted: #555862;
-    --green: #21c45d;
-    --green-dim: rgba(33,196,93,0.12);
-    --red: #ef4444;
-    --red-dim: rgba(239,68,68,0.12);
-    --accent: #3b82f6;
-    --yellow: #eab308;
-    --orange: #f97316;
-    --purple: #a855f7;
-    --cyan: #06b6d4;
-    --pink: #ec4899;
+    --bg-primary: #0b0e11;
+    --bg-secondary: #181a20;
+    --bg-tertiary: #2b3139;
+    --bg-card: #181a20;
+    --border: #2b3139;
+    --text-primary: #eaecef;
+    --text-secondary: #b7bdc6;
+    --text-muted: #848e9c;
+    --bid: #2962ff;
+    --bid-dim: rgba(41,98,255,0.12);
+    --red: #f6465d;
+    --red-dim: rgba(246,70,93,0.12);
+    --accent: #fcd535;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg-primary); color: var(--text-primary);
     line-height: 1.5; overflow-x: hidden;
   }
+  .container { width: 75vw; margin: 0 auto; }
+  @media (max-width: 1400px) { .container { width: 85vw; } }
+  @media (max-width: 1000px) { .container { width: 95vw; } }
 
-  /* --- Login Overlay --- */
-  .login-overlay {
-    position: fixed; inset: 0; z-index: 9999;
-    background: var(--bg-primary);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .login-overlay.hidden { display: none; }
-  .login-box {
-    background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 12px; padding: 40px 36px; width: 360px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  }
-  .login-box h1 {
-    font-size: 22px; font-weight: 700; margin-bottom: 4px;
-    letter-spacing: -0.5px;
-  }
-  .login-box h1 span { color: var(--green); }
-  .login-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
-  .login-field {
-    display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;
-  }
-  .login-field label {
-    font-size: 12px; font-weight: 600; color: var(--text-secondary);
-    text-transform: uppercase; letter-spacing: 0.5px;
-  }
-  .login-field input {
-    background: var(--bg-tertiary); border: 1px solid var(--border);
-    color: var(--text-primary); padding: 10px 14px; border-radius: 6px;
-    font-size: 14px; outline: none; transition: border-color 0.15s;
-  }
-  .login-field input:focus { border-color: var(--accent); }
-  .login-btn {
-    width: 100%; padding: 11px; border: none; border-radius: 6px;
-    background: var(--accent); color: #fff; font-size: 14px;
-    font-weight: 600; cursor: pointer; margin-top: 8px;
-    transition: opacity 0.15s;
-  }
-  .login-btn:hover { opacity: 0.9; }
-  .login-btn:disabled { opacity: 0.5; cursor: wait; }
-  .login-error {
-    color: var(--red); font-size: 12px; margin-top: 10px;
-    background: var(--red-dim); padding: 8px; border-radius: 4px;
-    display: none;
-  }
-  .login-error.show { display: block; }
-
-  /* --- Header --- */
   .header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 24px; background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary); border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 100;
   }
+  .header-inner {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 0;
+  }
   .header-left { display: flex; align-items: center; gap: 16px; }
-  .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
-  .logo span { color: var(--green); }
+  .logo {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 20px; font-weight: 700; letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); margin-left: -3px; }
   .tab-active {
-    font-size: 13px; font-weight: 600;
-    background: var(--bg-tertiary); padding: 6px 16px;
-    border-radius: 6px; border: 1px solid var(--border);
+    font-size: 13px; font-weight: 600; background: var(--bg-tertiary);
+    padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border);
   }
   .header-right { display: flex; align-items: center; gap: 12px; }
-  .coin-selector {
-    background: var(--bg-tertiary); border: 1px solid var(--border);
-    color: var(--text-primary); padding: 6px 12px;
-    border-radius: 6px; font-size: 13px; cursor: pointer; outline: none;
+  .search-wrapper { position: relative; }
+  .coin-search {
+    background: var(--bg-primary); border: 1px solid var(--border);
+    color: var(--text-primary); padding: 8px 14px; border-radius: 6px;
+    font-size: 13px; outline: none; width: 220px;
+    font-family: 'Inter', sans-serif; transition: border-color 0.2s;
   }
-  .coin-selector:focus { border-color: var(--accent); }
-  .coin-selector option { background: var(--bg-secondary); }
+  .coin-search:focus { border-color: var(--accent); }
+  .search-results {
+    position: absolute; top: 100%; right: 0; margin-top: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; width: 250px; max-height: 300px; overflow-y: auto;
+    display: none; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .search-item {
+    padding: 10px 14px; font-size: 13px; cursor: pointer; color: var(--text-secondary);
+    border-bottom: 1px solid var(--bg-primary);
+  }
+  .search-item:last-child { border-bottom: none; }
+  .search-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
   .logout-btn {
     background: transparent; border: 1px solid var(--border);
-    color: var(--text-secondary); padding: 5px 12px;
-    border-radius: 6px; font-size: 12px; cursor: pointer;
-    transition: all 0.15s;
+    color: var(--text-secondary); padding: 5px 12px; border-radius: 6px;
+    font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif;
+    font-weight: 500; transition: all 0.15s;
   }
   .logout-btn:hover { color: var(--red); border-color: var(--red); }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--green); animation: pulse 2s infinite;
-  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .status-dot.connected { background: var(--bid); animation: pulse 2s infinite; }
+  .status-dot.error { background: var(--red); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-  .status-text { font-size: 11px; color: var(--text-secondary); }
+  .status-text { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
 
-  /* --- Price Bar --- */
+  .page-wrapper { padding: 24px 0; }
   .price-bar {
     display: flex; align-items: center; gap: 32px;
-    padding: 16px 24px; background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+    padding: 0 0 24px 0; flex-wrap: wrap;
   }
-  .price-main {
-    font-size: 28px; font-weight: 700;
-    letter-spacing: -1px; font-variant-numeric: tabular-nums;
-  }
-  .price-change { font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
-  .price-change.up { color: var(--green); background: var(--green-dim); }
+  .price-main { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .price-change { font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 4px; }
+  .price-change.up { color: var(--bid); background: var(--bid-dim); }
   .price-change.down { color: var(--red); background: var(--red-dim); }
   .stat-item { display: flex; flex-direction: column; gap: 2px; }
-  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
   .stat-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-  /* --- Main Grid --- */
-  .main-grid {
-    display: grid; grid-template-columns: 1fr;
-    gap: 1px; background: var(--border);
+  .main-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 24px; position: relative;
   }
-  .chart-card { background: var(--bg-card); padding: 20px; }
-  .card-header {
-    display: flex; align-items: center;
-    justify-content: space-between; margin-bottom: 16px;
-  }
-  .card-title { font-size: 14px; font-weight: 600; }
-  .card-subtitle { font-size: 11px; color: var(--text-muted); }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-title { font-size: 16px; font-weight: 600; }
+  .card-subtitle { font-size: 12px; color: var(--text-muted); font-weight: 500; }
   .time-buttons { display: flex; gap: 4px; }
   .time-btn {
     background: transparent; border: 1px solid var(--border);
-    color: var(--text-secondary); padding: 4px 10px;
-    border-radius: 4px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+    color: var(--text-muted); padding: 4px 12px; border-radius: 4px;
+    font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif;
+    font-weight: 500; transition: all 0.15s;
   }
   .time-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
-  .time-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .time-btn.active { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--text-muted); }
+  #priceChart { width: 100%; height: 380px; }
 
-  #priceChart { width: 100%; height: 360px; }
-  #depthCanvas { width: 100%; height: 320px; }
-  #dominanceCanvas { width: 100%; height: 280px; }
-
-  .exchange-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .ex-chip {
-    display: flex; align-items: center; gap: 6px;
-    background: var(--bg-tertiary); padding: 4px 10px;
-    border-radius: 4px; font-size: 11px; color: var(--text-secondary);
-    border: 1px solid var(--border);
+  .loading-overlay {
+    position: absolute; inset: 0; background: rgba(24,26,32,0.85);
+    display: none; align-items: center; justify-content: center;
+    z-index: 50; font-weight: 600; font-size: 14px; color: var(--accent);
+    border-radius: 8px;
   }
-  .ex-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
-  .ex-chip .spread { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-
-  .footer {
-    padding: 16px 24px; text-align: center; font-size: 11px;
-    color: var(--text-muted); background: var(--bg-secondary);
-    border-top: 1px solid var(--border);
+  .loading-overlay.active { display: flex; }
+  .depth-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; position: relative; }
+  .depth-title { font-size: 20px; font-weight: 600; position: absolute; left: 50%; transform: translateX(-50%); }
+  .depth-header-left { width: 100px; }
+  .depth-controls { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .control-group { display: flex; gap: 4px; background: var(--bg-primary); padding: 3px; border-radius: 6px; margin-left: 6px; border: 1px solid var(--border); }
+  .depth-btn {
+    background: transparent; border: none; color: var(--text-muted);
+    padding: 4px 12px; border-radius: 4px; cursor: pointer;
+    font-size: 12px; font-family: 'Inter', sans-serif; font-weight: 500; transition: all 0.2s;
   }
+  .depth-btn:hover { color: var(--text-primary); }
+  .depth-btn.active { background: var(--bg-tertiary); color: var(--text-primary); }
+  .depth-stats-container { position: relative; width: 100%; height: 45px; margin-bottom: 16px; }
+  .edge-label { position: absolute; top: 0; font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .edge-label.left { left: 0; } .edge-label.right { right: 0; }
+  .stat-block { position: absolute; top: 0; text-align: center; transform: translateX(-50%); width: max-content; }
+  .stat-block.bids { left: 25%; } .stat-block.asks { left: 75%; }
+  .stat-block .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 500; }
+  .stat-block .value { font-size: 20px; font-weight: 700; }
+  #depthWrap { position: relative; width: 100%; height: 450px; }
+  #dominanceCanvas { width: 100%; height: 300px; }
 
-  @media (min-width: 900px) {
+  @media (min-width: 1100px) {
     .main-grid { grid-template-columns: 1fr 1fr; }
-    .chart-card:first-child { grid-column: 1 / -1; }
+    .card.full-width { grid-column: 1 / -1; }
   }
+  .footer { padding: 24px 0 32px 0; text-align: center; font-size: 12px; color: var(--text-muted); font-weight: 500; }
 </style>
 </head>
 <body>
 
-<!-- ==================== LOGIN OVERLAY ==================== -->
-<div class="login-overlay" id="loginOverlay">
-  <div class="login-box">
-    <h1>Crypto<span>Dash</span></h1>
-    <p>Sign in to access the dashboard</p>
-    <div class="login-field">
-      <label>Username</label>
-      <input type="text" id="loginUser" placeholder="demo" autocomplete="username">
-    </div>
-    <div class="login-field">
-      <label>Password</label>
-      <input type="password" id="loginPass" placeholder="demo" autocomplete="current-password">
-    </div>
-    <button class="login-btn" id="loginBtn">Sign In</button>
-    <div class="login-error" id="loginError"></div>
-  </div>
-</div>
-
-<!-- ==================== DASHBOARD ==================== -->
 <div class="header">
-  <div class="header-left">
-    <div class="logo">Crypto<span>Dash</span></div>
-    <div class="tab-active">Overview</div>
-  </div>
-  <div class="header-right">
-    <select class="coin-selector" id="coinSelect">
-      <option value="BTC" data-gecko="bitcoin">BTC — Bitcoin</option>
-      <option value="ETH" data-gecko="ethereum">ETH — Ethereum</option>
-      <option value="SOL" data-gecko="solana">SOL — Solana</option>
-      <option value="XRP" data-gecko="ripple">XRP — Ripple</option>
-      <option value="ADA" data-gecko="cardano">ADA — Cardano</option>
-      <option value="DOGE" data-gecko="dogecoin">DOGE — Dogecoin</option>
-      <option value="AVAX" data-gecko="avalanche-2">AVAX — Avalanche</option>
-      <option value="DOT" data-gecko="polkadot">DOT — Polkadot</option>
-      <option value="LINK" data-gecko="chainlink">LINK — Chainlink</option>
-      <option value="MATIC" data-gecko="matic-network">MATIC — Polygon</option>
-    </select>
-    <button class="logout-btn" id="logoutBtn">Logout</button>
-    <div class="status-dot" id="statusDot"></div>
-    <span class="status-text" id="statusText">Connecting…</span>
+  <div class="container header-inner">
+    <div class="header-left">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 100 100">
+          <defs>
+            <linearGradient id="hb" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3a414c"/><stop offset="50%" stop-color="#181a20"/><stop offset="100%" stop-color="#0b0e11"/></linearGradient>
+            <linearGradient id="hg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="rgba(255,255,255,0.5)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></linearGradient>
+          </defs>
+          <path fill="url(#hb)" stroke="#fcd535" stroke-width="4" stroke-linejoin="round" d="M50 10 L70 30 L60 40 L75 55 L60 65 L70 80 L50 95 L30 80 L40 65 L25 55 L40 40 L30 30 Z"/>
+          <path fill="url(#hg)" d="M50 10 L30 30 L40 40 L25 55 L40 65 L30 80 L50 95 Z"/>
+        </svg>
+        Pine<span> Coin</span>
+      </div>
+      <div class="tab-active">Overview</div>
+    </div>
+    <div class="header-right">
+      <div class="search-wrapper">
+        <input type="text" class="coin-search" id="coinSearch" placeholder="Search coin (e.g. ETH)..." autocomplete="off">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">Connecting...</span>
+    </div>
   </div>
 </div>
 
-<div class="price-bar">
-  <div class="price-main" id="currentPrice">—</div>
-  <div class="price-change" id="priceChange">—</div>
-  <div class="stat-item"><span class="stat-label">Spread (Avg)</span><span class="stat-value" id="avgSpread">—</span></div>
-  <div class="stat-item"><span class="stat-label">Exchanges</span><span class="stat-value" id="exchangeCount">—</span></div>
-  <div class="stat-item"><span class="stat-label">Total Bid Depth</span><span class="stat-value" id="totalBidDepth">—</span></div>
-  <div class="stat-item"><span class="stat-label">Total Ask Depth</span><span class="stat-value" id="totalAskDepth">—</span></div>
+<div class="page-wrapper">
+  <div class="container">
+    <div class="price-bar">
+      <div class="price-main" id="currentPrice">Loading...</div>
+      <div class="price-change up" id="priceChange">—</div>
+      <div class="stat-item"><span class="stat-label">Bid Depth</span><span class="stat-value" id="headerBidDepth">—</span></div>
+      <div class="stat-item"><span class="stat-label">Ask Depth</span><span class="stat-value" id="headerAskDepth">—</span></div>
+    </div>
+
+    <div class="main-grid">
+      <div class="card full-width">
+        <div class="card-header">
+          <div><div class="card-title">Price Chart</div><div class="card-subtitle" id="priceChartSub">USD · 7 Days</div></div>
+          <div class="time-buttons" id="timeButtons">
+            <button class="time-btn" data-days="1">1D</button>
+            <button class="time-btn active" data-days="7">7D</button>
+            <button class="time-btn" data-days="30">1M</button>
+            <button class="time-btn" data-days="90">3M</button>
+            <button class="time-btn" data-days="365">1Y</button>
+          </div>
+        </div>
+        <div id="priceChart"></div>
+      </div>
+
+      <div class="card">
+        <div class="loading-overlay" id="loadingOverlay">Fetching Live Data...</div>
+        <div class="depth-header">
+          <div class="depth-header-left"></div>
+          <div class="depth-title" id="depthTitle">BTC Depth Chart</div>
+          <div class="depth-controls">
+            <span>Zoom</span>
+            <div class="control-group" id="zoomGroup">
+              <button class="depth-btn" data-zoom="0.005">0.5%</button>
+              <button class="depth-btn" data-zoom="0.01">1%</button>
+              <button class="depth-btn active" data-zoom="0.02">2%</button>
+            </div>
+          </div>
+        </div>
+        <div class="depth-stats-container">
+          <div class="edge-label left">Order Value</div>
+          <div class="stat-block bids"><div class="label" id="bidStatLabel">BIDS -2%</div><div class="value" id="bidStatValue">$0.00 M</div></div>
+          <div class="stat-block asks"><div class="label" id="askStatLabel">ASKS +2%</div><div class="value" id="askStatValue">$0.00 M</div></div>
+          <div class="edge-label right">Order Total</div>
+        </div>
+        <div id="depthWrap"><canvas id="depthCanvas"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Market Dominance</div><div class="card-subtitle">Individual cryptocurrency share</div></div>
+        </div>
+        <canvas id="dominanceCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="footer">Pine Coin · Data from Binance & CoinGecko · Auto-refreshes every 10s</div>
+  </div>
 </div>
-
-<div class="main-grid">
-  <div class="chart-card">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Price Chart</div>
-        <div class="card-subtitle" id="priceChartSub">USD · 7 Days</div>
-      </div>
-      <div class="time-buttons" id="timeButtons">
-        <button class="time-btn" data-days="1">1D</button>
-        <button class="time-btn active" data-days="7">7D</button>
-        <button class="time-btn" data-days="30">1M</button>
-        <button class="time-btn" data-days="90">3M</button>
-        <button class="time-btn" data-days="365">1Y</button>
-      </div>
-    </div>
-    <div id="priceChart"></div>
-  </div>
-
-  <div class="chart-card">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Order Book Depth</div>
-        <div class="card-subtitle" id="depthSub">Aggregated across all exchanges</div>
-      </div>
-    </div>
-    <div id="depthWrap"><canvas id="depthCanvas"></canvas></div>
-    <div class="exchange-stats" id="exchangeChips"></div>
-  </div>
-
-  <div class="chart-card">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Market Dominance</div>
-        <div class="card-subtitle">Individual cryptocurrency share</div>
-      </div>
-    </div>
-    <canvas id="dominanceCanvas"></canvas>
-  </div>
-</div>
-
-<div class="footer">Data from CoinGecko & 25+ exchanges · Auto-refreshes every 30s · JWT Auth + Rate Limited</div>
 
 <script>
 // ============================================================
-// Auth State
+// Auth guard — redirect to login if no token
 // ============================================================
-let jwtToken = sessionStorage.getItem('jwt') || '';
+const jwtToken = sessionStorage.getItem('jwt');
+if (!jwtToken) window.location.href = '/login';
 
-function isLoggedIn() { return !!jwtToken; }
-
-function showLogin() {
-  document.getElementById('loginOverlay').classList.remove('hidden');
-}
-function hideLogin() {
-  document.getElementById('loginOverlay').classList.add('hidden');
-}
-
-async function doLogin() {
-  const btn = document.getElementById('loginBtn');
-  const errEl = document.getElementById('loginError');
-  const user = document.getElementById('loginUser').value.trim();
-  const pass = document.getElementById('loginPass').value;
-
-  btn.disabled = true;
-  errEl.classList.remove('show');
-
-  try {
-    const res = await fetch('/api/v1/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user, pass }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Login failed');
-
-    jwtToken = data.token;
-    sessionStorage.setItem('jwt', jwtToken);
-    hideLogin();
-    loadAll();
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.classList.add('show');
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-function doLogout() {
-  jwtToken = '';
-  sessionStorage.removeItem('jwt');
-  showLogin();
-}
-
-// ============================================================
-// Authenticated fetch wrapper
-// ============================================================
 async function fetchAuth(url) {
-  const res = await fetch(url, {
-    headers: { 'Authorization': 'Bearer ' + jwtToken },
-  });
-  if (res.status === 401) {
-    // Token expired or invalid — force re-login
-    doLogout();
-    throw new Error('Session expired');
-  }
-  if (res.status === 429) {
-    throw new Error('Rate limited — slow down');
-  }
+  const res = await fetch(url, { headers: {'Authorization': 'Bearer ' + jwtToken} });
+  if (res.status === 401) { sessionStorage.removeItem('jwt'); window.location.href = '/login'; throw new Error('Session expired'); }
+  if (res.status === 429) throw new Error('Rate limited');
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return res.json();
 }
 
-// ============================================================
-// Dashboard State
-// ============================================================
-const $ = id => document.getElementById(id);
-let currentSymbol = 'BTC';
-let currentGecko = 'bitcoin';
-let currentDays = 7;
-let priceChartInstance = null;
-let depthChart = null;
-let dominanceChart = null;
-
-// ============================================================
-// Init
-// ============================================================
-window.addEventListener('DOMContentLoaded', () => {
-  // Login handlers
-  $('loginBtn').addEventListener('click', doLogin);
-  $('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  $('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginPass').focus(); });
-  $('logoutBtn').addEventListener('click', doLogout);
-
-  // Check existing session
-  if (isLoggedIn()) {
-    hideLogin();
-    loadAll();
-  } else {
-    showLogin();
-  }
-
-  initCoinSelector();
-  initTimeButtons();
-  setInterval(() => { if (isLoggedIn()) loadAll(); }, 30000);
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('jwt');
+  window.location.href = '/login';
 });
 
-function initCoinSelector() {
-  $('coinSelect').addEventListener('change', () => {
-    const opt = $('coinSelect').options[$('coinSelect').selectedIndex];
-    currentSymbol = opt.value;
-    currentGecko = opt.dataset.gecko;
-    if (isLoggedIn()) loadAll();
-  });
+// ============================================================
+// State
+// ============================================================
+const $ = id => document.getElementById(id);
+let currentSymbol = 'BTC', currentGecko = 'bitcoin', currentDays = 7;
+let priceChartInstance = null, depthChart = null, dominanceChart = null;
+let CENTER_PRICE = 0, masterDepthData = null, currentZoomPct = 0.02;
+let coinsList = [], poll = null;
+
+// ============================================================
+// Boot
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  initTimeButtons();
+  initZoomButtons();
+  initDepthChart();
+  setupSearch();
+  fetchCoinList();
+  loadAll();
+  poll = setInterval(loadAll, 10000);
+});
+
+function setStatus(state, text) {
+  $('statusDot').className = 'status-dot ' + state;
+  $('statusText').textContent = text;
 }
 
+function loadAll() {
+  setStatus('', 'Refreshing...');
+  Promise.all([loadPriceChart(), fetchBinanceDepth(), loadDominance()])
+    .then(() => setStatus('connected', 'Live'))
+    .catch(() => setStatus('error', 'Error'));
+}
+
+// ============================================================
+// Time & Zoom Buttons
+// ============================================================
 function initTimeButtons() {
   $('timeButtons').addEventListener('click', e => {
     if (!e.target.classList.contains('time-btn')) return;
@@ -397,201 +308,237 @@ function initTimeButtons() {
     e.target.classList.add('active');
     currentDays = parseInt(e.target.dataset.days);
     const labels = {1:'1 Day',7:'7 Days',30:'1 Month',90:'3 Months',365:'1 Year'};
-    $('priceChartSub').textContent = 'USD · ' + (labels[currentDays] || currentDays + ' Days');
-    if (isLoggedIn()) loadPriceChart();
+    $('priceChartSub').textContent = 'USD · ' + (labels[currentDays] || currentDays+' Days');
+    loadPriceChart();
   });
 }
 
-function loadAll() {
-  setStatus('loading');
-  Promise.all([loadPriceChart(), loadDepthChart(), loadDominanceChart()])
-    .then(() => setStatus('ok'))
-    .catch(() => setStatus('error'));
-}
-
-function setStatus(s) {
-  const dot = $('statusDot'), txt = $('statusText');
-  if (s === 'ok')           { dot.style.background = 'var(--green)';  txt.textContent = 'Live'; }
-  else if (s === 'loading') { dot.style.background = 'var(--yellow)'; txt.textContent = 'Refreshing…'; }
-  else                      { dot.style.background = 'var(--red)';    txt.textContent = 'Error'; }
+function initZoomButtons() {
+  document.querySelectorAll('#zoomGroup .depth-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      this.parentNode.querySelectorAll('.depth-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentZoomPct = parseFloat(this.dataset.zoom);
+      updateChartForZoom(currentZoomPct);
+    });
+  });
 }
 
 // ============================================================
-// Price Chart
+// Price Chart (via backend proxy, authenticated)
 // ============================================================
 async function loadPriceChart() {
   try {
     const data = await fetchAuth('/api/v1/price?symbol=' + currentGecko + '&days=' + currentDays);
-    if (!data.prices) throw new Error('No price data');
-
-    const prices = data.prices.map(([t, p]) => ({ time: Math.floor(t / 1000), value: p }));
+    if (!data.prices) throw new Error('No data');
+    const prices = data.prices.map(([t, p]) => ({time: Math.floor(t/1000), value: p}));
 
     if (priceChartInstance) { priceChartInstance.remove(); priceChartInstance = null; }
-    const container = $('priceChart');
-    container.innerHTML = '';
+    const c = $('priceChart'); c.innerHTML = '';
 
-    priceChartInstance = LightweightCharts.createChart(container, {
-      width: container.clientWidth, height: 360,
-      layout: { background: { type: 'solid', color: '#1e1f26' }, textColor: '#8a8d98', fontSize: 11 },
-      grid: { vertLines: { color: '#2a2b3322' }, horzLines: { color: '#2a2b3322' } },
-      crosshair: {
-        mode: LightweightCharts.CrosshairMode.Normal,
-        vertLine: { color: '#555862', width: 1, style: 2 },
-        horzLine: { color: '#555862', width: 1, style: 2 },
-      },
-      rightPriceScale: { borderColor: '#2a2b33' },
-      timeScale: { borderColor: '#2a2b33', timeVisible: currentDays <= 7 },
+    priceChartInstance = LightweightCharts.createChart(c, {
+      width: c.clientWidth, height: 380,
+      layout: { background:{type:'solid',color:'#181a20'}, textColor:'#848e9c', fontSize:11, fontFamily:'Inter' },
+      grid: { vertLines:{color:'#2b313918'}, horzLines:{color:'#2b313918'} },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine:{color:'#848e9c',width:1,style:2}, horzLine:{color:'#848e9c',width:1,style:2} },
+      rightPriceScale: { borderColor:'#2b3139' }, timeScale: { borderColor:'#2b3139', timeVisible: currentDays <= 7 },
     });
 
-    const isUp = prices.length > 1 && prices[prices.length - 1].value >= prices[0].value;
-    const lineColor = isUp ? '#21c45d' : '#ef4444';
-
+    const isUp = prices.length > 1 && prices[prices.length-1].value >= prices[0].value;
+    const color = isUp ? '#2962ff' : '#f6465d';
     const series = priceChartInstance.addAreaSeries({
-      lineColor, lineWidth: 2,
-      topColor: isUp ? 'rgba(33,196,93,0.25)' : 'rgba(239,68,68,0.25)',
-      bottomColor: isUp ? 'rgba(33,196,93,0.01)' : 'rgba(239,68,68,0.01)',
-      priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+      lineColor: color, lineWidth: 2,
+      topColor: isUp ? 'rgba(41,98,255,0.25)' : 'rgba(246,70,93,0.25)',
+      bottomColor: isUp ? 'rgba(41,98,255,0.01)' : 'rgba(246,70,93,0.01)',
+      priceFormat: {type:'price', precision:2, minMove:0.01},
     });
     series.setData(prices);
     priceChartInstance.timeScale().fitContent();
-
-    const last = prices[prices.length - 1].value;
-    const first = prices[0].value;
-    const change = (last - first) / first * 100;
-    $('currentPrice').textContent = '$' + last.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const el = $('priceChange');
-    el.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
-    el.className = 'price-change ' + (change >= 0 ? 'up' : 'down');
-
-    new ResizeObserver(() => {
-      if (priceChartInstance) priceChartInstance.applyOptions({ width: container.clientWidth });
-    }).observe(container);
-  } catch (err) { console.error('Price chart error:', err); }
+    new ResizeObserver(() => { if (priceChartInstance) priceChartInstance.applyOptions({width:c.clientWidth}); }).observe(c);
+  } catch (err) { console.error('Price:', err); }
 }
 
 // ============================================================
-// Depth Chart
+// Depth Chart — Direct Binance 5000 levels
 // ============================================================
-async function loadDepthChart() {
+async function fetchBinanceDepth() {
+  $('loadingOverlay').classList.add('active');
   try {
-    const data = await fetchAuth('/api/v1/book?symbol=' + currentSymbol + '-USDT&limit=50');
-    if (!data.results || data.results.length === 0) throw new Error('No depth data');
+    const res = await fetch('https://api.binance.com/api/v3/depth?symbol='+currentSymbol+'USDT&limit=5000');
+    if (!res.ok) throw new Error('Pair unavailable');
+    const data = await res.json();
+    const tickerRes = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol='+currentSymbol+'USDT');
+    const ticker = await tickerRes.json();
 
-    let allBids = [], allAsks = [], totalBidQty = 0, totalAskQty = 0, spreadSum = 0, exCount = 0;
+    const bestBid = parseFloat(data.bids[0][0]), bestAsk = parseFloat(data.asks[0][0]);
+    CENTER_PRICE = (bestBid + bestAsk) / 2;
+    masterDepthData = { rawBids: data.bids, rawAsks: data.asks };
 
-    data.results.forEach(ex => {
-      if (ex.error) return;
-      exCount++;
-      spreadSum += ex.spread.spread;
-      ex.data.forEach(pt => {
-        if (pt.bidCum != null) { allBids.push({ price: pt.price, qty: pt.qty }); totalBidQty += pt.qty; }
-        if (pt.askCum != null) { allAsks.push({ price: pt.price, qty: pt.qty }); totalAskQty += pt.qty; }
-      });
-    });
+    const pct = parseFloat(ticker.priceChangePercent);
+    const dec = CENTER_PRICE > 10 ? 2 : (CENTER_PRICE > 0.1 ? 4 : 6);
+    $('currentPrice').textContent = '$' + CENTER_PRICE.toLocaleString(undefined, {minimumFractionDigits:dec, maximumFractionDigits:dec});
+    const el = $('priceChange');
+    el.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    el.className = 'price-change ' + (pct >= 0 ? 'up' : 'down');
+    $('depthTitle').textContent = currentSymbol + ' Depth Chart';
+    updateChartForZoom(currentZoomPct);
+  } catch (e) {
+    console.error('Depth:', e);
+    masterDepthData = {rawBids:[], rawAsks:[]};
+    updateChartForZoom(currentZoomPct);
+  } finally { $('loadingOverlay').classList.remove('active'); }
+}
 
-    allBids.sort((a, b) => b.price - a.price);
-    allAsks.sort((a, b) => a.price - b.price);
-
-    let cum = 0;
-    const bidData = allBids.map(b => { cum += b.qty; return { x: b.price, y: cum }; }).reverse();
-    cum = 0;
-    const askData = allAsks.map(a => { cum += a.qty; return { x: a.price, y: cum }; });
-
-    $('avgSpread').textContent = exCount > 0 ? '$' + (spreadSum / exCount).toFixed(2) : '—';
-    $('exchangeCount').textContent = exCount;
-    $('totalBidDepth').textContent = totalBidQty.toFixed(2) + ' ' + currentSymbol;
-    $('totalAskDepth').textContent = totalAskQty.toFixed(2) + ' ' + currentSymbol;
-
-    $('exchangeChips').innerHTML = data.results.filter(ex => !ex.error).slice(0, 15)
-      .map(ex => '<div class="ex-chip"><span class="dot"></span>' + ex.exchange + ' <span class="spread">$' + ex.spread.spread.toFixed(2) + '</span></div>').join('');
-
-    const ctx = $('depthCanvas').getContext('2d');
-    if (depthChart) depthChart.destroy();
-    depthChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        datasets: [
-          { label: 'Bids', data: bidData, borderColor: '#21c45d', backgroundColor: 'rgba(33,196,93,0.08)', fill: true, pointRadius: 0, borderWidth: 1.5, tension: 0.1 },
-          { label: 'Asks', data: askData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, pointRadius: 0, borderWidth: 1.5, tension: 0.1 },
-        ],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-        interaction: { mode: 'nearest', intersect: false },
-        plugins: {
-          legend: { display: true, position: 'top', align: 'end', labels: { color: '#8a8d98', boxWidth: 12, padding: 16, font: { size: 11 } } },
-          tooltip: {
-            backgroundColor: '#23242b', borderColor: '#2a2b33', borderWidth: 1,
-            titleColor: '#e8e9ed', bodyColor: '#8a8d98', padding: 10,
-            callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(4) + ' ' + currentSymbol + ' @ $' + ctx.parsed.x.toLocaleString() },
-          },
-        },
-        scales: {
-          x: { type: 'linear', title: { display: true, text: 'Price (USD)', color: '#555862', font: { size: 11 } }, ticks: { color: '#555862', font: { size: 10 }, callback: v => '$' + v.toLocaleString() }, grid: { color: '#2a2b3318' }, border: { color: '#2a2b33' } },
-          y: { title: { display: true, text: 'Cumulative (' + currentSymbol + ')', color: '#555862', font: { size: 11 } }, ticks: { color: '#555862', font: { size: 10 }, callback: v => v.toFixed(1) }, grid: { color: '#2a2b3318' }, border: { color: '#2a2b33' } },
-        },
-      },
-    });
-  } catch (err) {
-    console.error('Depth chart error:', err);
-    $('depthSub').textContent = 'Error loading depth data';
+function processDepthData(z) {
+  if (!masterDepthData) return null;
+  const xMin = CENTER_PRICE*(1-z), xMax = CENTER_PRICE*(1+z);
+  const fB=[], fBV=[]; let cB=0;
+  for (const [ps,qs] of masterDepthData.rawBids) {
+    const p=parseFloat(ps), q=parseFloat(qs);
+    if (p>CENTER_PRICE) continue; if (p<xMin) break;
+    const v=p*q; cB+=v; fB.push({x:p,y:cB}); fBV.push({x:p,y:v});
   }
+  fB.sort((a,b)=>a.x-b.x); fBV.sort((a,b)=>a.x-b.x);
+  if (fB.length && fB[0].x>xMin) { fB.unshift({x:xMin,y:cB}); fBV.unshift({x:xMin,y:0}); }
+
+  const fA=[], fAV=[]; let cA=0;
+  for (const [ps,qs] of masterDepthData.rawAsks) {
+    const p=parseFloat(ps), q=parseFloat(qs);
+    if (p<CENTER_PRICE) continue; if (p>xMax) break;
+    const v=p*q; cA+=v; fA.push({x:p,y:cA}); fAV.push({x:p,y:v});
+  }
+  if (fA.length && fA[fA.length-1].x<xMax) { fA.push({x:xMax,y:cA}); fAV.push({x:xMax,y:0}); }
+  return {bidData:fB, askData:fA, bidVolData:fBV, askVolData:fAV, totalBids:cB, totalAsks:cA};
+}
+
+const centerLinePlugin = {
+  id:'centerLine',
+  afterDraw: chart => {
+    if (chart.tooltip?._active?.length || !CENTER_PRICE) return;
+    const ctx=chart.ctx, xPx=chart.scales.x.getPixelForValue(CENTER_PRICE);
+    if (xPx<chart.chartArea.left || xPx>chart.chartArea.right) return;
+    ctx.save(); ctx.beginPath(); ctx.setLineDash([4,4]);
+    ctx.moveTo(xPx, chart.chartArea.top+20); ctx.lineTo(xPx, chart.chartArea.bottom);
+    ctx.lineWidth=1.5; ctx.strokeStyle='#848e9c'; ctx.stroke();
+    ctx.fillStyle='#eaecef'; ctx.font='600 12px Inter,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('$'+CENTER_PRICE.toLocaleString(undefined,{minimumFractionDigits:CENTER_PRICE>10?2:4}), xPx, chart.chartArea.top+10);
+    ctx.restore();
+  }
+};
+
+function initDepthChart() {
+  depthChart = new Chart($('depthCanvas').getContext('2d'), {
+    type:'line',
+    data: { datasets: [
+      {label:'Cumulative Asks',data:[],borderColor:'#f6465d',backgroundColor:'rgba(246,70,93,0.15)',borderWidth:2,fill:true,stepped:'middle',pointRadius:0,pointHoverRadius:4,yAxisID:'yTotal',order:2},
+      {label:'Cumulative Bids',data:[],borderColor:'#2962ff',backgroundColor:'rgba(41,98,255,0.15)',borderWidth:2,fill:true,stepped:'middle',pointRadius:0,pointHoverRadius:4,yAxisID:'yTotal',order:2},
+      {type:'bar',label:'Ask Volume',data:[],backgroundColor:'rgba(246,70,93,0.3)',yAxisID:'yVolume',barPercentage:1,categoryPercentage:1,order:3},
+      {type:'bar',label:'Bid Volume',data:[],backgroundColor:'rgba(41,98,255,0.3)',yAxisID:'yVolume',barPercentage:1,categoryPercentage:1,order:3},
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{mode:'index',intersect:false},
+      plugins: {
+        legend:{display:false},
+        tooltip:{backgroundColor:'#2b3139',titleColor:'#eaecef',bodyColor:'#b7bdc6',titleFont:{family:'Inter',size:13,weight:'600'},bodyFont:{family:'Inter',size:12},borderColor:'#181a20',borderWidth:1,padding:10,
+          callbacks:{
+            title:items=>{const v=Number(items[0].parsed.x);return '$'+v.toLocaleString(undefined,{minimumFractionDigits:v>10?2:4});},
+            label:ctx=>{let l=ctx.dataset.label||'';if(l)l+=': ';if(ctx.parsed.y!=null)l+='$'+(ctx.parsed.y/1e6).toFixed(2)+'M';return l;}
+          }
+        }
+      },
+      scales:{
+        x:{type:'linear',grid:{display:false},ticks:{color:'#848e9c',font:{family:'Inter',size:11},maxTicksLimit:10,callback:v=>'$'+v.toLocaleString(undefined,{maximumFractionDigits:2})}},
+        yTotal:{type:'linear',position:'right',min:0,grid:{color:'#2b3139'},ticks:{color:'#848e9c',font:{family:'Inter',size:11},callback:v=>v===0?'':'$'+(v/1e6).toFixed(0)+'M'}},
+        yVolume:{type:'linear',position:'left',min:0,grid:{display:false},ticks:{color:'#848e9c',font:{family:'Inter',size:11},callback:v=>v===0?'':'$'+(v/1e6).toFixed(0)+'M'}},
+      }
+    },
+    plugins:[centerLinePlugin]
+  });
+}
+
+function updateChartForZoom(z) {
+  const d = processDepthData(z);
+  if (!d) return;
+  depthChart.data.datasets[0].data=d.askData;
+  depthChart.data.datasets[1].data=d.bidData;
+  depthChart.data.datasets[2].data=d.askVolData;
+  depthChart.data.datasets[3].data=d.bidVolData;
+  const xMin=CENTER_PRICE*(1-z), xMax=CENTER_PRICE*(1+z);
+  depthChart.options.scales.x.min=xMin; depthChart.options.scales.x.max=xMax;
+  const mc=Math.max(d.totalBids,d.totalAsks);
+  depthChart.options.scales.yTotal.max=mc*1.15;
+  depthChart.options.scales.yVolume.max=mc*0.4;
+  const lbl=(z*100)+'%';
+  $('bidStatLabel').textContent='BIDS -'+lbl; $('askStatLabel').textContent='ASKS +'+lbl;
+  const fmt=v=>v>=1e6?'$'+(v/1e6).toFixed(2)+' M':v>=1e3?'$'+(v/1e3).toFixed(2)+' K':'$'+v.toFixed(2);
+  $('bidStatValue').textContent=fmt(d.totalBids); $('askStatValue').textContent=fmt(d.totalAsks);
+  $('headerBidDepth').textContent=fmt(d.totalBids); $('headerAskDepth').textContent=fmt(d.totalAsks);
+  depthChart.update();
 }
 
 // ============================================================
-// Dominance Chart
+// Dominance (via backend proxy, authenticated)
 // ============================================================
-async function loadDominanceChart() {
+async function loadDominance() {
   try {
     const data = await fetchAuth('/api/v1/dominance');
-    if (!data.data) throw new Error('No dominance data');
-
-    const mp = data.data.market_cap_percentage;
-    const entries = Object.entries(mp).sort((a, b) => b[1] - a[1]);
-    const top = entries.slice(0, 8);
-    const otherPct = entries.slice(8).reduce((s, [, v]) => s + v, 0);
-
-    const labels = top.map(([k]) => k.toUpperCase());
-    const values = top.map(([, v]) => v);
-    if (otherPct > 0) { labels.push('OTHER'); values.push(otherPct); }
-
-    const colors = ['#f7931a','#627eea','#21c45d','#3b82f6','#eab308','#a855f7','#06b6d4','#ec4899','#555862'];
-
-    const ctx = $('dominanceCanvas').getContext('2d');
-    if (dominanceChart) dominanceChart.destroy();
-    dominanceChart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels, datasets: [{
-          data: values,
-          backgroundColor: colors.slice(0, labels.length),
-          borderColor: '#1e1f26', borderWidth: 2,
-          hoverBorderColor: '#e8e9ed', hoverBorderWidth: 2,
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: '55%',
-        animation: { duration: 500 },
-        plugins: {
-          legend: {
-            position: 'right',
-            labels: {
-              color: '#8a8d98', padding: 12, font: { size: 11 }, usePointStyle: true, pointStyleWidth: 10,
-              generateLabels: chart => {
-                const ds = chart.data.datasets[0];
-                return chart.data.labels.map((l, i) => ({ text: l + '  ' + ds.data[i].toFixed(1) + '%', fillStyle: ds.backgroundColor[i], strokeStyle: 'transparent', pointStyle: 'rectRounded', hidden: false, index: i }));
-              },
-            },
-          },
-          tooltip: {
-            backgroundColor: '#23242b', borderColor: '#2a2b33', borderWidth: 1,
-            titleColor: '#e8e9ed', bodyColor: '#8a8d98', padding: 10,
-            callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed.toFixed(2) + '%' },
-          },
-        },
-      },
+    if (!data.data) throw new Error('No data');
+    const mp=data.data.market_cap_percentage;
+    const entries=Object.entries(mp).sort((a,b)=>b[1]-a[1]);
+    const top=entries.slice(0,8);
+    const other=entries.slice(8).reduce((s,[,v])=>s+v,0);
+    const labels=top.map(([k])=>k.toUpperCase());
+    const values=top.map(([,v])=>v);
+    if(other>0){labels.push('OTHER');values.push(other);}
+    const colors=['#f7931a','#627eea','#2962ff','#3b82f6','#fcd535','#a855f7','#06b6d4','#ec4899','#848e9c'];
+    const ctx=$('dominanceCanvas').getContext('2d');
+    if(dominanceChart)dominanceChart.destroy();
+    dominanceChart=new Chart(ctx,{
+      type:'doughnut',
+      data:{labels,datasets:[{data:values,backgroundColor:colors.slice(0,labels.length),borderColor:'#181a20',borderWidth:2,hoverBorderColor:'#eaecef',hoverBorderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'55%',animation:{duration:500},
+        plugins:{
+          legend:{position:'right',labels:{color:'#848e9c',padding:12,font:{family:'Inter',size:11},usePointStyle:true,pointStyleWidth:10,
+            generateLabels:ch=>{const ds=ch.data.datasets[0];return ch.data.labels.map((l,i)=>({text:l+'  '+ds.data[i].toFixed(1)+'%',fillStyle:ds.backgroundColor[i],strokeStyle:'transparent',pointStyle:'rectRounded',hidden:false,index:i}));}}},
+          tooltip:{backgroundColor:'#2b3139',borderColor:'#181a20',borderWidth:1,titleColor:'#eaecef',bodyColor:'#b7bdc6',padding:10,titleFont:{family:'Inter'},bodyFont:{family:'Inter'},
+            callbacks:{label:ctx=>' '+ctx.label+': '+ctx.parsed.toFixed(2)+'%'}}
+        }
+      }
     });
-  } catch (err) { console.error('Dominance chart error:', err); }
+  } catch(err){console.error('Dominance:',err);}
+}
+
+// ============================================================
+// Search
+// ============================================================
+async function fetchCoinList() {
+  try { coinsList = await (await fetch('https://api.coingecko.com/api/v3/coins/list')).json(); } catch(e) {}
+}
+
+function setupSearch() {
+  const input=$('coinSearch'), results=$('searchResults');
+  input.addEventListener('input',()=>{
+    const q=input.value.toLowerCase().trim();
+    results.innerHTML='';
+    if(!q){results.style.display='none';return;}
+    const filtered=coinsList.filter(c=>c.symbol.toLowerCase().includes(q)||c.name.toLowerCase().includes(q)).slice(0,50);
+    if(!filtered.length){results.innerHTML='<div class="search-item">No results</div>';results.style.display='block';return;}
+    filtered.forEach(coin=>{
+      const div=document.createElement('div');
+      div.className='search-item';
+      div.textContent=coin.symbol.toUpperCase()+' — '+coin.name;
+      div.onclick=()=>{
+        currentSymbol=coin.symbol.toUpperCase(); currentGecko=coin.id;
+        input.value=currentSymbol; results.style.display='none';
+        if(poll)clearInterval(poll);
+        loadAll(); poll=setInterval(loadAll,10000);
+      };
+      results.appendChild(div);
+    });
+    results.style.display='block';
+  });
+  document.addEventListener('click',e=>{if(!e.target.closest('.search-wrapper'))results.style.display='none';});
 }
 </script>
 </body>
