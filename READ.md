@@ -139,12 +139,3 @@ export API_PASS=your-strong-password
 
 ```
 
-## Usage notes
-
-~10–20 MB RAM idle  
-
-Docker limited to ~256 MB  
-
-Kubernetes auto-scales 2–10 pods
-
-Enjoy!
