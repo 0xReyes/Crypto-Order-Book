@@ -1,0 +1,5 @@
+aggregator
+*.exe
+*.log
+data.json
+.env

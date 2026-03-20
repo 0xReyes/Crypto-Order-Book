@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crypto-dashboard
+  namespace: crypto-dashboard
+  labels:
+    app: crypto-dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: crypto-dashboard
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: crypto-dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: crypto-dashboard:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8080"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: crypto-dashboard-secrets
+                  key: JWT_SECRET
+            - name: API_USER
+              valueFrom:
+                secretKeyRef:
+                  name: crypto-dashboard-secrets
+                  key: API_USER
+            - name: API_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: crypto-dashboard-secrets
+                  key: API_PASS
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15

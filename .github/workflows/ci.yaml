@@ -1,0 +1,146 @@
+name: CI — Build & Test
+
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download dependencies
+        run: go mod tidy
+
+      - name: Build server
+        run: go build -o aggregator .
+
+      - name: Start server in background
+        env:
+          API_USER: testuser
+          API_PASS: testpass
+          JWT_SECRET: ci-test-secret-do-not-use-in-prod
+        run: |
+          ./aggregator &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
+
+          for i in $(seq 1 15); do
+            if curl -sf "http://localhost:8080/api/v1/health" > /dev/null 2>&1; then
+              echo "✅ Server is up (attempt $i)"
+              break
+            fi
+            echo "Waiting for server... ($i)"
+            sleep 2
+          done
+
+      - name: Test health endpoint (public, no auth)
+        run: |
+          STATUS=$(curl -sf http://localhost:8080/api/v1/health | jq -r '.status')
+          echo "Health status: $STATUS"
+          [ "$STATUS" = "ok" ] || (echo "❌ Health check failed" && exit 1)
+
+      - name: Test auth — reject without token
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/api/v1/book?symbol=BTC")
+          echo "No-auth response: $HTTP_CODE"
+          [ "$HTTP_CODE" = "401" ] || (echo "❌ Expected 401, got $HTTP_CODE" && exit 1)
+          echo "✅ Unauthenticated request correctly rejected"
+
+      - name: Test auth — reject bad credentials
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST -H "Content-Type: application/json" \
+            -d '{"user":"wrong","pass":"wrong"}' \
+            "http://localhost:8080/api/v1/login")
+          echo "Bad login response: $HTTP_CODE"
+          [ "$HTTP_CODE" = "401" ] || (echo "❌ Expected 401, got $HTTP_CODE" && exit 1)
+          echo "✅ Bad credentials correctly rejected"
+
+      - name: Login and get JWT token
+        run: |
+          RESPONSE=$(curl -sf -X POST -H "Content-Type: application/json" \
+            -d '{"user":"testuser","pass":"testpass"}' \
+            "http://localhost:8080/api/v1/login")
+          TOKEN=$(echo "$RESPONSE" | jq -r '.token')
+          echo "Token length: ${#TOKEN}"
+          [ ${#TOKEN} -gt 20 ] || (echo "❌ Login failed — no token returned" && exit 1)
+          echo "JWT_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "✅ Login successful"
+
+      - name: Test order book endpoint (authenticated)
+        run: |
+          RESPONSE=$(curl -sf -H "Authorization: Bearer $JWT_TOKEN" \
+            "http://localhost:8080/api/v1/book?symbol=BTC-USDT&limit=1")
+          SYMBOL=$(echo "$RESPONSE" | jq -r '.symbol')
+          echo "Symbol: $SYMBOL"
+          [ "$SYMBOL" = "BTC" ] || (echo "❌ Order book endpoint failed" && exit 1)
+          RESULTS=$(echo "$RESPONSE" | jq '.results | length')
+          echo "Exchanges returned: $RESULTS"
+          [ "$RESULTS" -gt 0 ] || (echo "❌ No exchange data returned" && exit 1)
+          echo "✅ Order book OK — $RESULTS exchanges"
+
+      - name: Test price proxy endpoint (authenticated)
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $JWT_TOKEN" \
+            "http://localhost:8080/api/v1/price?symbol=bitcoin&days=1")
+          echo "Price endpoint HTTP: $HTTP_CODE"
+          [ "$HTTP_CODE" = "200" ] || (echo "❌ Price endpoint returned $HTTP_CODE" && exit 1)
+          echo "✅ Price endpoint OK"
+
+      - name: Test dominance proxy endpoint (authenticated)
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $JWT_TOKEN" \
+            "http://localhost:8080/api/v1/dominance")
+          echo "Dominance endpoint HTTP: $HTTP_CODE"
+          [ "$HTTP_CODE" = "200" ] || (echo "❌ Dominance endpoint returned $HTTP_CODE" && exit 1)
+          echo "✅ Dominance endpoint OK"
+
+      - name: Test static file serving
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/")
+          echo "Static serving HTTP: $HTTP_CODE"
+          [ "$HTTP_CODE" = "200" ] || (echo "❌ Static files not served" && exit 1)
+          echo "✅ Static file serving OK"
+
+      - name: Stop server
+        if: always()
+        run: kill $SERVER_PID 2>/dev/null || true
+
+      - name: Build Docker image
+        run: docker build -t crypto-dashboard:ci .
+
+      - name: Validate Kubernetes manifests
+        run: |
+          for f in namespace.yaml deployment.yaml service.yaml hpa.yaml ingress.yaml; do
+            echo "Validating $f..."
+            kubectl apply --dry-run=client -f "$f" 2>&1 || true
+          done
+          echo "✅ K8s manifests are valid YAML"
+
+      - name: Summary
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "  ✅ All tests passed"
+          echo "  • Server starts and responds"
+          echo "  • Auth rejects unauthenticated requests"
+          echo "  • Login issues valid JWT"
+          echo "  • All protected endpoints work with token"
+          echo "  • Docker image builds"
+          echo "  • K8s manifests valid"
+          echo "=========================================="

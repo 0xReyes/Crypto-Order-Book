@@ -1,239 +1,150 @@
-# Crypto Exchange Order Book Depth API Master Review
 
-This comprehensive review details the public spot market order book (L2/L3 depth) endpoints for over 240 cryptocurrency exchanges (as of March 2026). It focuses on REST API snapshots for quick reference and implementation.
+# Crypto-Order-Book
 
-**Official documentation links** added for many exchanges (direct to order book / depth endpoint pages where possible). Use these for complete specs, rate limits, WebSocket alternatives, precision, and updates.
+Lightweight crypto dashboard  
 
-## Technical Overview
+• Aggregates order books from 25+ exchanges  
 
-Most exchanges follow a similar **REST** pattern:
+• JWT login + per-IP rate limiting
 
-- **Response format**: JSON with `bids` and `asks` arrays.
-- Common fields: **p** (price), **q/v/s** (quantity/volume/size), **n** (order count when available).
-- Arrays often: `[[price, quantity], ...]` or variations (e.g., Bybit: `"a"`/`"b"`).
-- Precision: Use strings + decimal libraries (decimal.js, bignumber.js).
+### What you see
 
-## Exchange Order Book API Endpoints (Spot & Futures)
+- Price chart (CoinGecko history)  
 
-| Exchange                  | Order Book API Endpoint                                      | Symbol Parameter Format | Limit Parameter          | Response Schema (simplified JSON)                          | Official Docs URL |
-|---------------------------|--------------------------------------------------------------|-------------------------|--------------------------|------------------------------------------------------------|-------------------|
-| Bitfinex                 | `https://api-pub.bitfinex.com/v2/book/{symbol}/P0`          | `tBTCUSD`               | `len` (1, 25, 100)       | `[[PRICE, COUNT, AMOUNT], ...]`                           | REST: [Bitfinex REST Book](https://docs.bitfinex.com/reference/rest-public-book) — WS: [Bitfinex WS Books](https://docs.bitfinex.com/reference/ws-public-books) |
-| BingX                    | `https://open-api.bingx.com/openApi/spot/v1/market/depth`   | `BTC-USDT`              | `limit` (max 100)        | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [BingX API Docs](https://bingx-api.github.io/docs/) |
-| Kraken                   | `https://api.kraken.com/0/public/Depth`                     | `XBTUSD`                | `count` (100)            | `{"result": {"PAIR": {"asks": [[p, v, t], ...], "bids": [...]}}}` | [Kraken API Docs](https://docs.kraken.com/rest/#tag/Market-Data/operation/getDepth) |
-| BitMart                  | `https://api-cloud.bitmart.com/spot/quotation/v3/books`     | `BTC_USDT`              | `limit` (max 50)         | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [BitMart Developer Docs](https://developer-pro.bitmart.com/en/spot/#get-depth) |
-| LBank                    | `https://api.lbank.info/v2/depth.do`                        | `btc_usdt`              | `size` (1-480)           | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [LBank API Docs](https://www.lbank.com/docs/en/#market-depth) |
-| Bitstamp                 | `https://www.bitstamp.net/api/v2/order_book/{symbol}/`      | `btcusd`                | N/A                      | `{"bids": [[p, q], ...], "asks": [...]}`                  | [Bitstamp API Docs](https://www.bitstamp.net/api/) |
-| XT.COM                   | `https://api.xt.com/v4/public/depth`                        | `btc_usdt`              | `limit` (max 50)         | `{"result": {"asks": [[p, q], ...], "bids": [...]}}`      | REST: [XT.COM API Docs](https://doc.xt.com/) — WS: [XT.COM WebSocket](https://doc.xt.com/docs/spot/WebSocket%20Public/OrderbookManage) |
-| Tokocrypto               | `https://www.tokocrypto.com/open/v1/market/depth`           | `BTC_USDT`              | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [Tokocrypto API Docs](https://www.tokocrypto.com/apidocs/) |
-| Binance.US               | `https://api.binance.us/api/v3/depth`                       | `BTCUSDT`               | `limit` (5000)           | `{"bids": [[p, q], ...], "asks": [...]}`                  | [Binance.US API Docs](https://docs.binance.us/#market-data-endpoints) |
-| Bybit                    | `https://api.bybit.com/v5/market/orderbook`                 | `BTCUSDT`               | `limit` (50)             | `{"result": {"a": [[p, q], ...], "b": [...]}}`            | [Bybit API Docs](https://bybit-exchange.github.io/docs/v5/market/orderbook) |
-| OKX                      | `https://www.okx.com/api/v5/market/books`                   | `BTC-USDT`              | `sz` (400)               | `{"data": [{"asks": [[p, q, ...]], "bids": [...]}]}`      | [OKX API Docs](https://www.okx.com/docs-v5/en/#public-data-rest-api-get-order-book) |
-| KuCoin (Spot)            | `https://api.kucoin.com/api/v1/market/orderbook/level2_100` | `BTC-USDT`              | N/A                      | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [KuCoin API Docs](https://www.kucoin.com/docs-new/rest/spot-trading/market-data/get-full-orderbook) |
-| **KuCoin Futures**       | `https://api-futures.kucoin.com/api/v1/level2/snapshot?symbol=BTCUSDTM` | `BTCUSDTM` | N/A (full depth) | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [KuCoin Futures API Docs](https://www.kucoin.com/docs-new/rest/futures-trading/market-data/get-full-orderbook) |
-| Gemini                   | `https://api.gemini.com/v1/book/{symbol}`                   | `btcusd`                | `limit_bids`             | `{"bids": [{"price": p, "amount": q}]}`                   | [Gemini API Docs](https://docs.gemini.com/rest-api/#current-order-book) |
-| Coinbase                 | `https://api.exchange.coinbase.com/products/{id}/book`      | `BTC-USD`               | `level` (1,2,3)          | `{"bids": [[p, q, num], ...], "asks": [...]}`             | [Coinbase API Docs](https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproductbook) |
-| Gate.io                  | `https://api.gateio.ws/api/v4/spot/order_book`              | `BTC_USDT`              | `limit` (100)            | `{"asks": [[p, q], ...], "bids": [...]}`                  | [Gate.io API Docs](https://www.gate.io/docs/developers/apiv4/en/#list-order-book) |
-| Binance                  | `https://api.binance.com/api/v3/depth`                      | `BTCUSDT`               | `limit` (5000)           | `{"bids": [[p, q], ...], "asks": [...]}`                  | [Binance API Docs](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#order-book) |
-| KCEX                     | `https://api.kcex.com/api/v1/market/depth`                  | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs; check site or CCXT |
-| Toobit                   | `https://api.toobit.com/quote/v1/depth`                     | `BTCUSDT`               | N/A (up to 300)          | `{"b": [[p, q], ...], "a": [[p, q], ...]}`                | [Toobit API Docs](https://toobit-docs.github.io/apidocs/spot/v1/en/#order-book) |
-| BVOX                     | `https://api.bvox.com/api/v1/market/depth`                  | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs found |
-| CoinW                    | `https://api.coinw.com/api/v1/public?command=returnOrderBook` | `BTC_USDT`             | N/A                      | `{"asks": [[p, q], ...], "bids": [...]}`                  | No clear public docs; CCXT reference |
-| Hotcoin                  | `https://api.hotcoinfin.com/v1/depth`                       | `btcusdt`               | `size` (100)             | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [Hotcoin API Docs](https://www.hotcoin.com/en_US/apiDocument) |
-| Pionex                   | `https://api.pionex.com/api/v1/market/depth`                | `BTC_USDT`              | `limit` (100)            | `{"asks": [[p, q], ...], "bids": [...], "updateTime": ts}` | [Pionex API Docs](https://pionex-doc.gitbook.io/apidocs/restful/markets/get-depth) |
-| Ourbit                   | `https://api.ourbit.com/api/v1/market/depth`                | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs; Binance-like |
-| WEEX                     | `https://api.weex.com/api/v1/market/depth`                  | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs found |
-| OrangeX                  | `https://api.orangex.com/api/v1/market/depth`               | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| UZX                      | `https://api.uzx.com/api/v1/depth`                          | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| YUBIT                    | `https://api.yubit.com/api/v1/market/depth`                 | `BTC_USDT`              | `limit` (50)             | `{"asks": [[p, q], ...], "bids": [...]}`                  | No public docs |
-| Coinstore                | `https://api.coinstore.com/api/v1/market/depth`             | `BTCUSDT`               | `depth` (50)             | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| Bitunix                  | `https://api.bitunix.com/api/v1/market/depth`               | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| BloFin                   | `https://openapi.blofin.com/api/v1/market/books`            | `BTC-USDT`              | `limit` (400)            | `{"data": [{"asks": [[p, q], ...], "bids": [...]}]}`      | [BloFin API Docs](https://blofin.github.io/docs) |
-| Bitrue                   | `https://openapi.bitrue.com/api/v1/depth`                   | `BTCUSDT`               | `limit` (100)            | `{"asks": [[p, q], ...], "bids": [...]}`                  | [Bitrue API Docs](https://www.bitrue.com/api-docs) |
-| Tapbit                   | `https://api.tapbit.com/api/v1/depth`                       | `BTC_USDT`              | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| Phemex                   | `https://api.phemex.com/md/orderbook`                       | `sBTCUSDT`              | N/A                      | `{"result": {"book": {"asks": [[p, q]]}}}`                | [Phemex API Docs](https://phemex-docs.github.io) |
-| BTSE                     | `https://api.btse.com/spot/api/v3.2/orderbook`              | `BTC-USDT`              | `limit` (50)             | `{"asks": [[p, q], ...], "bids": [...]}`                  | [BTSE API Docs](https://www.btse.com/en/developers) |
-| Biconomy                 | `https://www.biconomy.com/api/v1/depth`                     | `BTC_USDT`              | `size` (100)             | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | Limited docs |
-| CrypFine                 | `https://api.crypfine.com/api/v1/depth`                     | `BTCUSDT`               | `limit` (50)             | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| WhiteBIT                 | `https://whitebit.com/api/v4/public/depth/{symbol}`         | `BTC_USDT`              | `limit` (100)            | `{"asks": [[p, q], ...], "bids": [...]}`                  | [WhiteBIT API Docs](https://docs.whitebit.com/public-market) |
-| Zoomex                   | `https://api.zoomex.com/v3/public/quote/depth`              | `BTCUSDT`               | `limit` (50)             | `{"result": {"a": [[p, q], ...], "b": [...]}}`            | No public docs |
-| Crypto.com               | `https://api.crypto.com/v2/public/get-book`                 | `BTC_USDT`              | `depth` (50)             | `{"result": {"data": [{"asks": [[p, q, n]]}]}}`           | [Crypto.com API Docs](https://exchange-docs.crypto.com) |
-| Dex-Trade                | `https://api.dex-trade.com/v1/public/depth`                 | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| Bullish                  | `https://api.exchange.bullish.com/trading-api/v1/markets/{symbol}/orderbook` | `BTC-USDT` | N/A | `{"bids": [{"price": p, "amount": q}]}`                   | [Bullish API Docs](https://developers.bullish.com) |
-| Bitget                   | `https://api.bitget.com/api/v2/spot/market/orderbook`       | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [Bitget API Docs](https://www.bitget.com/api-doc/spot/market/Get-Orderbook) |
-| Blynex                   | `https://api.blynex.com/api/v1/depth`                       | `BTC_USDT`              | `limit` (50)             | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs |
-| Poloniex                 | `https://api.poloniex.com/markets/{symbol}/orderbook`       | `BTC_USDT`              | `limit` (50)             | `{"asks": [[p, q], ...], "bids": [...]}`                  | [Poloniex API Docs](https://docs.poloniex.com) |
-| Binance TH               | `https://api.binance.th/api/v3/depth`                       | `BTCUSDT`               | `limit` (1000)           | `{"bids": [[p, q], ...], "asks": [...]}`                  | Binance-compatible |
-| MEXC                     | `https://api.mexc.com/api/v3/depth`                         | `BTCUSDT`               | `limit` (5000)           | `{"bids": [[p, q], ...], "asks": [...]}`                  | [MEXC API Docs](https://mexcdevelop.github.io/apidocs/spot_v3_en/#order-book) |
-| CEX.IO                   | `https://cex.io/api/order_book/{base}/{quote}/`             | `BTC/USD`               | N/A                      | `{"bids": [[p, q], ...], "asks": [...]}`                  | [CEX.IO API Docs](https://cex.io/cex-api) |
-| CoinEx                   | `https://api.coinex.com/v2/spot/market/depth`               | `BTCUSDT`               | `limit` (50)             | `{"data": {"depth": {"asks": [[p, q]]}}}`                 | [CoinEx API Docs](https://docs.coinex.com/api/v2/spot/market/http/list-market-depth) |
-| AscendEX                 | `https://ascendex.com/api/pro/v1/depth`                     | `BTC/USDT`              | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [AscendEX API Docs](https://ascendex.com/api) |
-| LMAX Digital             | `https://ld-api.lmax.com/v1/orderbook/{id}`                 | (ID-based)              | N/A                      | `{"bids": [{"p": x, "q": y}]}`                            | Institutional; login often required |
-| Backpack                 | `https://api.backpack.exchange/api/v1/depth`                | `BTC_USDT`              | `limit` (1000)           | `{"asks": [[p, q], ...], "bids": [...]}`                  | [Backpack API Docs](https://docs.backpack.exchange) |
-| Bitvavo                  | `https://api.bitvavo.com/v2/{symbol}/book`                  | `BTC-EUR`               | `depth` (1000)           | `{"bids": [[p, q], ...], "asks": [...]}`                  | [Bitvavo API Docs](https://docs.bitvavo.com/docs/rest-api/get-order-book) |
-| Upbit                    | `https://api.upbit.com/v1/orderbook`                        | `KRW-BTC`               | N/A                      | `[{"orderbook_units": [{"ask_price": p, ...}]}]`          | [Upbit API Docs](https://docs.upbit.com/reference/%ec%98%a4%eb%8d%94%eb%b6%81) |
-| Hyperliquid              | `POST https://api.hyperliquid.xyz/info` ({"type":"l2Book","coin":"BTC"}) | `BTC` | N/A | `{"levels": [[{"px":p,"sz":q}]]}`                         | [Hyperliquid API Docs](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint#l2book) |
-| CoinDCX                  | `https://api.coindcx.com/market_data/orderbook`             | `pair` (e.g., `BTC_INR`) | N/A                    | `{"bids": [[p, q], ...], "asks": [...]}`                  | [CoinDCX API Docs](https://docs.coindcx.com/) |
-| BitKan                   | `/api/v1/market/depth` (assumed standard)                   | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs found; check https://bitkan.com/help/doc/open-api |
-| Deepcoin                 | `https://api.deepcoin.com/deepcoin/market/books`            | (instId)                | `sz` (max 400)           | Standard depth levels                                     | [Deepcoin API Docs](https://www.deepcoin.com/docs/DeepCoinMarket/marketBooks) |
-| CoinChief                | Assumed `/api/v1/market/depth`                              | `BTCUSDT`               | `limit` (100)            | Standard pattern                                          | No public docs found |
-| EXMO.ME                  | `/api/v1/order_book` or similar (public)                    | pair                    | N/A                      | `{"bids": [[p, q], ...], "asks": [...]}`                  | [EXMO API Docs](https://documenter.getpostman.com/view/10287440/2s8ZDbUzkY) |
-| HashKey Exchange         | `https://api-pro.hashkey.com/quote/v1/depth`                | `BTCUSDT`               | `limit` (max 200)        | Standard depth                                            | [HashKey API Docs](https://hashkeyglobal-apidoc.readme.io/reference/get-order-book) |
-| WOO X                    | `https://api.woox.io/v3/public/orderbook?symbol={symbol}&maxLevel={depth}` | symbol | `maxLevel` | `{"asks": [[p, q], ...], "bids": [...]}`                  | [WOO X API Docs](https://developer.woox.io/api-reference/endpoint/public_data/orderbook) |
-| DigiFinex                | `https://openapi.digifinex.com/v3/order_book`               | `btc_usdt`              | `limit` (max 150)        | `{"bids": [[p, q], ...], "asks": [...]}`                  | [DigiFinex API Docs](https://docs.digifinex.com/en-ww/spot/v3/rest.html#get-orderbook) |
-| BtcTurk                  | `https://api.btcturk.com/api/v2/orderbook`                  | `pairSymbol`            | `limit` (default 100)    | Standard order book                                       | [BtcTurk API Docs](https://docs.btcturk.com/docs/public-endpoints/orderbook) |
-| P2B                      | Assumed `/api/v2/depth` or similar                          | `market`                | N/A                      | Standard pattern                                          | [P2B API Docs](https://github.com/P2B-team/p2b-api-docs) |
-| NovaDAX                  | `https://api.novadax.com/v1/market/depth`                   | `BTC_USDT`              | `size` (100)             | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | [NovaDAX API Docs](https://doc.novadax.com/en-US/#get-market-depth) |
-| Bitso                    | `https://api.bitso.com/v3/order_book/{book}`                | `btc_mxn`               | `aggregate` (true/false) | `{"payload": {"asks": [{"p":x, "q":y}], "bids": [...]}}`  | [Bitso API Docs](https://docs.bitso.com/bitso-api/docs/list-order-book) |
-| XBO.com                  | `https://api.xbo.com/v1/spot-trading/orderbook/{symbol}?depth={depth}` | `BTCUSDT` | `depth` | Standard level 2 order book                               | [XBO.com API Docs](https://docs.xbo.com/) |
-| Coinmetro                | No dedicated public endpoint found (limited market data)    | N/A                     | N/A                      | Standard pattern if available                             | No public order book docs found; check https://www.coinmetro.com/developers |
-| TruBit Pro Exchange      | Assumed `/openapi/v1/exchange/orderbook` or similar         | `BTCUSDT`               | N/A                      | Standard pattern                                          | [TruBit API Docs](https://docs-api.trubit.com/trubit-pro/spot/rest-api) |
-| C-Patex                  | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Fastex                   | No public order book endpoint found                         | N/A                     | N/A                      | N/A                                                       | No public docs; check https://exchange.fastex.com/api/documentation |
-| Nivex                    | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Polyx                    | No specific public docs; assumed standard                   | N/A                     | N/A                      | Standard pattern                                          | No dedicated public docs found |
-| Paribu                   | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard order book                                       | [Paribu API Docs](https://docs.paribu.com/api) |
-| Mars Exchange            | No public order book docs found                             | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Cryptonex                | `https://stats.cryptonex.org` (POST stats.order_book)       | pair (e.g. eth/usd)     | `max_count` (10)         | `{"order_book": {"asks": [["p", "q"]], "bids": [...]}}`   | [Cryptonex API Docs](https://cryptonex.org/help/api) |
-| LATOKEN                  | `https://api.latoken.com/v2/book/{base}/{quote}`            | `BTC/USDT`              | `limit` (max 1000)       | Standard order book                                       | [LATOKEN API Docs](https://api.latoken.com/doc/v2) |
-| Emirex                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Gems Trade               | No public docs found (unrelated to Gemini Gems)             | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| ChangeNOW                | No order book endpoint (swap-focused, not full exchange)    | N/A                     | N/A                      | N/A                                                       | [ChangeNOW API Docs](https://changenow.io/api) |
-| Giottus                  | `https://api.giottus.com/api/v1/public/market/orderbook`    | `BTC/USDT`              | `limit` (default 20, max 50) | `{"bids": [[p, q], ...], "asks": [[p, q], ...]}`       | [Giottus API Docs](https://api.giottus.com/docs) |
-| BitexLive                | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| StakeCube                | `/exchange/spot/orderbook?market={pair}&side={BUY/SELL}`    | `SCC_BTC`               | N/A (full or side)       | `{"asks": [[price, amount], ...], "bids": [...]}`         | [StakeCube API Docs](https://stakecube.net/app/api/exchange) |
-| VALR                     | Assumed `/v1/public/{pair}/orderbook` or WS aggregated      | `BTCZAR`                | N/A                      | Standard aggregated order book                            | [VALR API Docs](https://docs.valr.com/) |
-| Globe Derivative Exchange| `https://globe.exchange/api/v1/ticker/orderbook`            | (instrument)            | Top 25 levels            | Top 25 bids/asks snapshot (WS for real-time)              | [Globe API Docs](https://globe.exchange/developers) |
-| BiFinance                | Assumed standard /api/v1/market/depth or similar            | `BTCUSDT`               | `limit` (100–500)        | Standard pattern (Binance-like)                           | No public docs found; check exchange site or CCXT |
-| Azbit                    | `/api/orderbook` or `/api/v1/depth`                         | `BTC_USDT`              | 40 bids + 40 asks        | Standard orderbook (bids/asks arrays)                     | [Azbit API Docs](https://data.azbit.com/) |
-| Hibt                     | `https://api.hibt.com/api/v1/market/depth`                  | `BTCUSDT`               | `depth` (max 50)         | `{"symbol": "...", "depth": [... bids/asks]}`             | [Hibt API Docs](https://hibt-api.gitbook.io/hibt-openapi-en) |
-| Echobit                  | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BTDUex                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Picol                    | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Koinbay                  | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| SunX                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| FameEX                   | `https://openapi.fameex.com/sapi/v1/depth`                  | `btc_usdt`              | `depth` (0=full, 5–500)  | Standard depth (full or limited bids/asks)                | [FameEX API Docs](https://fameex-docs.github.io/docs/api/spot/en) |
-| MGBX                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BitbabyExchange          | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Cryptomus                | `https://api.cryptomus.com/v1/exchange/market/order-book/{currencyPair}` | `currencyPair` | `level` (0–5) | Order book with volume levels                             | [Cryptomus API Docs](https://doc.cryptomus.com/methods/market-cap/orderbook) |
-| NovaEx                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BigONE                   | `https://api.big.one/api/v3/asset_pairs/{pair}/depth`       | `BTC-USDT`              | `limit` (default/top levels) | Standard order book (bids/asks)                        | [BigONE API Docs](https://open.bigone.com/docs/spot/rest/get-depth) |
-| Bitcastle                | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Bit2Me                   | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | Limited/no public docs; check Bit2Me developer portal |
-| VOOX                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Millionero               | WS: subscribe to "books" topic                              | `BTCUSDT`               | N/A (live depth)         | Live order book updates (WS)                              | [Millionero API Docs](https://docs.millionero.com/) |
-| BitTap                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BiKing                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Tebbit                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BITmarkets               | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | [BITmarkets API Docs](https://bitmarkets.com) |
-| CoinCola                 | `https://api.coincola.com/v1/contract/market/orderbook`     | `BTC_PERPUSDT`          | `depth` (0=full, 10–400) | Standard order book (bids/asks with depth levels)         | [CoinCola API Docs](https://support.coincola.com/hc/en-us/articles/44451862772761-CoinCola-Spot-Exchange-API-Documentation) |
-| PointPay                 | Assumed `/api/v1/market/depth` or similar                   | `BTCUSDT`               | `limit` (100)            | Standard pattern                                          | [PointPay API Docs](https://pointpay.gitbook.io/base/exchange-api-documentation) |
-| Aivora Exchange          | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| LeveX                    | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| ZKE                      | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Websea                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Coinlocally              | Assumed `/api/v3/depth` (Binance-like)                      | `BTCUSDT`               | `limit` (500)            | `{"bids": [[p, q], ...], "asks": [...]}`                  | No public docs; standard mid-tier pattern |
-| Batonex                  | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BitDelta                 | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Coinflare                | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| TGEX                     | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| AIA Exchange             | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Kanga Exchange           | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | No public API docs located |
-| SWFT Trade               | No order book (swap-focused)                                | N/A                     | N/A                      | N/A                                                       | [SWFT Trade API Docs](https://swft.pro/api) |
-| Qmall Exchange           | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BTCC                     | `https://api.btcc.com/api/v1/market/depth`                  | `BTCUSDT`               | `limit` (100)            | Standard depth                                            | Limited/no public docs; check BTCC developer portal |
-| IndoEx                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| GroveX                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BYDFi                    | `https://api.bydfi.com/api/v3/depth`                        | `BTCUSDT`               | `limit` (500)            | `{"bids": [[p, q], ...], "asks": [...]}`                  | Binance-compatible; no dedicated docs |
-| Ju.com                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| HitBTC                   | `https://api.hitbtc.com/api/3/public/orderbook/{symbol}`    | `BTCUSDT`               | `limit` (100)            | `{"asks": [[p, q], ...], "timestamp": "..."}`             | [HitBTC API Docs](https://api.hitbtc.com) |
-| ALP.COM                  | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BitStorage               | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Changelly PRO            | No order book (swap/exchange aggregator)                    | N/A                     | N/A                      | N/A                                                       | [Changelly PRO API Docs](https://pro.changelly.com/api) |
-| VinDAX                   | Assumed `/api/v1/depth`                                     | `BTCUSDT`               | `limit` (100)            | Standard pattern                                          | No public docs found |
-| Cat.Ex                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| NexDAX                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Bibox                    | `https://api.bibox.com/v1/mdata?cmd=depth`                  | `BTC_USDT`              | `size` (200)             | `{"result": [{"asks": [[p, q], ...], "bids": [...]}]}`    | [Bibox API Docs](https://biboxcom.github.io/apidocs) |
-| BitradeX                 | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| CoinUp.io                | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| AllinX                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| YEX                      | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| ASTX                     | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BitxEX                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| idax                     | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| EagleX                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BlockFin                 | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| EasiCoin                 | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| CoinP                    | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| SuperEx                  | `https://api.superex.com/api/v1/market/depth`               | `BTCUSDT`               | `limit` (100)            | `{"data": {"asks": [[p, q], ...], "bids": [...]}}`        | No public docs; standard pattern |
-| WHXEX                    | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Ulink                    | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| OneEx                    | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| IBIT Global              | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| TRIV                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Gleec BTC                | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| KTX                      | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| CZR Exchange             | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| KlicklX                  | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Mandala Exchange         | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | No public API docs located |
-| BitGW Exchange           | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Bybit EU                 | Same as Bybit main (`https://api.bybit.com/v5/market/orderbook`) | `BTCUSDT`            | `limit` (50)              | Same as Bybit                                             | [Bybit API Docs](https://bybit-exchange.github.io/docs/v5/market/orderbook) |
-| Bilaxy                   | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BlueBit                  | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| XXKK                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Cofinex                  | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Nonkyc.io Exchange       | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | No public API docs located |
-| Remitano                 | No public order book endpoint (P2P-focused)                 | N/A                     | N/A                      | N/A                                                       | [Remitano API Docs](https://remitano.com/api) |
-| CEEX                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Gate US                  | Same as Gate.io main (`https://api.gateio.ws/api/v4/spot/order_book`) | `BTC_USDT`       | `limit` (100)             | Same as Gate.io                                           | [Gate.io API Docs](https://www.gate.io/docs/developers/apiv4/en/#list-order-book) |
-| CoinZoom                 | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| B2Z Exchange             | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Koinpark                 | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Serenity                 | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| COINSPACE                | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Coins.ph                 | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | Limited/no public docs |
-| 5DAX                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Bitcoiva                 | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BIT.TEAM                 | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| BitMEX                   | `https://www.bitmex.com/api/v1/orderBook/L2`                | `XBTUSDT`               | `depth`                  | `[{"price":p,"size":q,"side":"Buy"}]`                     | [BitMEX API Docs](https://docs.bitmex.com/api-explorer/order-book) |
-| MAX Exchange             | `https://max-api.maicoin.com/api/v2/depth`                  | `btcusdt`               | `limit` (1000)           | `{"asks": [[p, q], ...], "bids": [...]}`                  | [MAX Exchange API Docs](https://max.maicoin.com/api) |
-| BitoPro                  | `https://api.bitopro.com/v3/order-book/{pair}`              | `btc_usdt`              | `limit` (1000)           | `{"bids": [{"price": "p", "amount": "q"}]}`               | [BitoPro API Docs](https://developers.bitopro.com) |
-| ONUS Pro                 | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Dexalot                  | No public order book endpoint/docs found (DEX)              | N/A                     | N/A                      | N/A                                                       | [Dexalot API Docs](https://dexalot.com/developers) |
-| HTX (Huobi)              | `https://api.huobi.pro/market/depth`                        | `btcusdt`               | `type` (step0)           | `{"tick": {"bids": [[p, q]], "asks": [...]}}`             | [HTX API Docs](https://huobiapi.github.io/docs/spot/v1/en/#market-depth) |
-| CoinJar                  | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | Limited/no public docs |
-| Independent Reserve      | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| zondacrypto              | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Foxbit                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| bitFlyer                 | `https://api.bitflyer.com/v1/getboard`                      | `BTC_JPY`               | N/A                      | `{"bids": [{"price":p,"size":q}]}`                        | [bitFlyer API Docs](https://lightning.bitflyer.com/docs?lang=en#getboard) |
-| HashKey Global           | Same as HashKey (`https://api-pro.hashkey.com/quote/v1/depth`) | `BTCUSDT`            | `limit` (max 200)         | Standard depth                                            | [HashKey API Docs](https://hashkeyglobal-apidoc.readme.io/reference/get-order-book) |
-| LCX Exchange             | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| WazirX                   | `https://api.wazirx.com/api/v3/depth`                       | `btcusdt`               | `limit`                  | `{"bids": [[p, q]], "asks": [...]}`                       | [WazirX API Docs](https://docs.wazirx.com) |
-| Bithumb                  | `https://api.bithumb.com/public/orderbook/{pair}`           | `BTC_KRW`               | `count` (30)             | `{"data": {"bids": [{"price":p,"quantity":q}]}}`          | [Bithumb API Docs](https://apidocs.bithumb.com) |
-| 1DEX                     | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| SafeTrade                | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Coinut                   | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | Limited/no public docs |
-| GOPAX                    | `https://api.gopax.co.kr/trading-pairs/{pair}/book`         | `BTC-KRW`               | `level`                  | `{"ask": [[id, p, q, t], ...], "bid": [...]}`             | [GOPAX API Docs](https://www.gopax.co.kr/developers) |
-| BTC Markets              | `https://api.btcmarkets.net/v3/markets/{id}/orderbook`      | `BTC-AUD`               | N/A                      | `{"bids": [[p, q], ...], "asks": [...]}`                  | [BTC Markets API Docs](https://api.btcmarkets.net) |
-| FOBLGATE                 | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| KoinBX                   | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Dzengi.com               | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | No public API docs located |
-| Bitspay                  | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Kinesis Money            | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| 4E                       | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Young Platform           | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| ICRYPEX                  | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | No public API docs located |
-| Ripio                    | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| AstralX                  | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Indodax                  | `https://indodax.com/api/depth/{pair}`                      | `btcidr`                | N/A                      | `{"bids": [[p, q]], "asks": [...]}`                       | [Indodax API Docs](https://indodax.com/api) |
-| BCEX Korea               | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| CriptoSwaps              | No order book (swap-focused)                                | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Flipster                 | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Figure Markets           | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | No public API docs located |
-| Bitazza                  | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Bitlo                    | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Cube Exchange            | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Digitra.com              | No public detailed docs; assumed standard                   | pair                    | N/A                      | Standard pattern                                          | No public API docs located |
-| Altcoin Trader           | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| Crypton                  | No public docs/endpoint found                               | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| CoinLion                 | No public order book endpoint/docs found                    | N/A                     | N/A                      | N/A                                                       | No public API docs located |
-| **Unocoin**              | `https://api.unocoin.com/api/v1/exchange/orderbook`         | ticker_id (e.g. BTC_INR) | `depth` (1000)          | Standard pattern (bids/asks arrays)                       | [Unocoin API Docs](https://unocoin.com/in/support/api-documentation/) |
+- Order book depth (aggregated bids/asks)  
+
+- Market dominance chart
+
+## Quick Start
+
+**Local (Go)**  
+
+```bash
+
+go build -o agg .
+
+./agg
+
+```
+
+→ http://localhost:8080  
+
+Login: demo / demo
+
+**Docker**  
+
+```bash
+
+docker build -t crypto .
+
+docker run -d -p 8080:8080 \
+
+  -e JWT_SECRET=$(openssl rand -base64 48) \
+
+  -e API_USER=admin \
+
+  -e API_PASS=secret123 \
+
+  crypto
+
+```
+
+**Kubernetes**  
+
+```bash
+
+./deploy.sh k8s
+
+kubectl port-forward svc/crypto-dashboard 8080:80
+
+```
+
+## Login & API
+
+1. Get token  
+
+```bash
+
+curl -X POST http://localhost:8080/api/v1/login \
+
+  -d '{"user":"demo","pass":"demo"}'
+
+```
+
+2. Use token  
+
+```bash
+
+curl -H "Authorization: Bearer <token>" \
+
+  http://localhost:8080/api/v1/book?symbol=BTC
+
+```
+
+(The web UI logs in automatically.)
+
+## Key env vars
+
+- `JWT_SECRET`   — **must be strong in production**  
+
+- `API_USER`     — default: demo  
+
+- `API_PASS`     — default: demo  
+
+- `PORT`         — default: 8080
+
+## Rate limiting
+
+10 req/s sustained per IP  
+
+30 req burst  
+
+Returns 429 when exceeded
+
+## Main endpoints
+
+- `/`                  → dashboard (no auth)  
+
+- `/api/v1/login`      → get JWT (POST)  
+
+- `/api/v1/health`     → status (no auth)  
+
+- `/api/v1/book`       → order book (GET + Bearer)  
+
+- `/api/v1/price`      → price history (GET + Bearer)  
+
+- `/api/v1/dominance`  → dominance (GET + Bearer)
+
+## Deploy on server
+
+```bash
+
+git clone https://github.com/0xReyes/Crypto-Order-Book.git
+
+cd Crypto-Order-Book
+
+chmod +x deploy.sh
+
+export JWT_SECRET=$(openssl rand -base64 48)
+
+export API_USER=admin
+
+export API_PASS=your-strong-password
+
+./deploy.sh docker     # easiest
+
+# ./deploy.sh k8s      # Kubernetes
+
+# ./deploy.sh bare     # plain binary
+
+```
+
+## Usage notes
+
+~10–20 MB RAM idle  
+
+Docker limited to ~256 MB  
+
+Kubernetes auto-scales 2–10 pods
+
+Enjoy!
