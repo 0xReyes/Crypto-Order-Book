@@ -31,13 +31,9 @@ jobs:
         uses: helm/kind-action@v1.10.0
         with:
           version: v0.24.0
-          config: >-
-            kind: Cluster
-            apiVersion: kind.x-k8s.io/v1alpha4
-            nodes:
-              - role: control-plane
-              - role: worker
-              - role: worker
+          config: .github/kind-config.yaml   # ← this is the fix
+          wait: 120s                          # optional: give cluster time to be ready
+          verbosity: 1                       # optional: more debug output
 
       - name: Load image into kind
         run: kind load docker-image crypto-dashboard:ci
