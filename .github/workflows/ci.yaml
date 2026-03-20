@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # opt into Node.js 24
+
 jobs:
   test-and-deploy-kind:
     runs-on: ubuntu-latest
@@ -57,6 +60,38 @@ jobs:
           kubectl get pods -l app=crypto-dashboard -n crypto-dashboard
           kubectl get svc crypto-dashboard -n crypto-dashboard
           echo "Kind deploy test complete ✓ (temporary cluster)"
+
+      - name: Test token authentication
+        run: |
+          set -e  # exit on any error
+
+          # Port‑forward the service to localhost
+          kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80 &
+          PF_PID=$!
+          sleep 3  # give it a moment to establish
+
+          # Health check (optional, but good)
+          curl --fail --retry 5 --retry-connrefused http://localhost:8080/api/v1/health
+
+          # Get JWT token
+          TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/login \
+            -H "Content-Type: application/json" \
+            -d '{"user":"testadmin","pass":"testpass123"}' | jq -r .token)
+
+          if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
+            echo "❌ Failed to obtain token"
+            exit 1
+          fi
+          echo "✅ Token obtained: ${TOKEN:0:20}..."
+
+          # Access protected endpoint
+          curl --fail -H "Authorization: Bearer $TOKEN" \
+            "http://localhost:8080/api/v1/book?symbol=BTC-USDT&limit=1"
+
+          echo "✅ Token authentication successful"
+
+          # Clean up port-forward
+          kill $PF_PID
 
       - name: Show pod status & logs (on failure)
         if: failure()
