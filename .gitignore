@@ -3,3 +3,4 @@ aggregator
 *.log
 data.json
 .env
+data.txt

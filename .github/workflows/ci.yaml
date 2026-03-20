@@ -54,9 +54,11 @@ jobs:
             API_PASS: "testpass123"
           EOF
 
+      - name: Create namespace
+        run: kubectl apply -f namespace.yaml   # no || true – fail if can't create
+
       - name: Deploy manifests
         run: |
-          kubectl apply -f namespace.yaml || true
           kubectl apply -f deployment.yaml -n crypto-dashboard || true
           kubectl apply -f service.yaml -n crypto-dashboard || true
 
