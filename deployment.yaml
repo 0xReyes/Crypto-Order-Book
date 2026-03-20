@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: dashboard
-          image: crypto-dashboard:latest
+          image: crypto-dashboard:ci
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

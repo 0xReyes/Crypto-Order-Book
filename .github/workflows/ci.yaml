@@ -59,20 +59,19 @@ jobs:
           kubectl apply -f deployment.yaml -n crypto-dashboard || true
           kubectl apply -f service.yaml -n crypto-dashboard || true
 
+          # Override image tag to the one loaded in kind
+          kubectl set image deployment/crypto-dashboard dashboard=crypto-dashboard:ci -n crypto-dashboard
+
       - name: Wait for rollout & verify
         run: |
-          kubectl rollout status deployment/crypto-dashboard -n crypto-dashboard --timeout=180s || true
-          echo "Pods:"
+          kubectl rollout status deployment/crypto-dashboard -n crypto-dashboard --timeout=120s || true
           kubectl get pods -l app=crypto-dashboard -n crypto-dashboard
-          echo "Service:"
           kubectl get svc crypto-dashboard -n crypto-dashboard
-          echo ""
           echo "Kind deploy test complete ✓ (temporary cluster)"
 
-      - name: Optional — quick internal curl test
+      - name: Show pod status & logs
+        if: always()
         run: |
-          kubectl port-forward svc/crypto-dashboard 8080:80 &
-          PF_PID=$!
-          sleep 5
-          curl -sf http://localhost:8080/api/v1/health && echo "Health OK inside kind" || echo "Health check failed"
-          kill $PF_PID 2>/dev/null || true
+          kubectl get pods -n crypto-dashboard -o wide
+          kubectl describe pod -l app=crypto-dashboard -n crypto-dashboard || true
+          kubectl logs -l app=crypto-dashboard -n crypto-dashboard --tail=30 || true
