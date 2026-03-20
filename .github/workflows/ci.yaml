@@ -61,7 +61,7 @@ jobs:
 
       - name: Wait for rollout & verify
         run: |
-          kubectl rollout status deployment/crypto-dashboard -n crypto-dashboard --timeout=120s || true
+          kubectl rollout status deployment/crypto-dashboard -n crypto-dashboard --timeout=180s || true
           echo "Pods:"
           kubectl get pods -l app=crypto-dashboard -n crypto-dashboard
           echo "Service:"
