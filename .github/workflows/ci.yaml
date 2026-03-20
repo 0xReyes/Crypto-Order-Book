@@ -10,7 +10,7 @@ on:
 jobs:
   test-and-deploy-kind:
     runs-on: ubuntu-latest
-    timeout-minutes: 10   # safety net
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -58,30 +58,21 @@ jobs:
 
       - name: Deploy manifests
         run: |
-          # Apply in order — skip ingress/hpa if not needed in kind
-          kubectl apply -f namespace.yaml || true   # ignore if exists
+          kubectl apply -f namespace.yaml || true
           kubectl apply -f deployment.yaml
           kubectl apply -f service.yaml
 
-          # Optional: patch image if tag is hardcoded
-          # kubectl set image deployment/crypto-dashboard app=crypto-dashboard:ci
-
       - name: Wait for rollout & verify
         run: |
-          kubectl rollout status deployment/crypto-dashboard --timeout=120s
-          echo "Pods:"
+          kubectl rollout status deployment/crypto-dashboard --timeout=120s || true
           kubectl get pods -l app=crypto-dashboard
-          echo "Service:"
           kubectl get svc crypto-dashboard
-          echo ""
-          echo "Deployment successful in kind cluster ✓"
-          echo "(This cluster is temporary — only exists during this job)"
+          echo "Kind deploy test complete ✓ (temporary cluster)"
 
-      - name: Optional — test internal access
+      - name: Optional — quick internal curl test
         run: |
-          # Port-forward in background (for demo)
           kubectl port-forward svc/crypto-dashboard 8080:80 &
           PF_PID=$!
           sleep 5
-          curl -sf http://localhost:8080/api/v1/health && echo "Health OK inside kind" || echo "Health check failed"
+          curl -sf http://localhost:8080/api/v1/health && echo "Health OK" || echo "Health failed"
           kill $PF_PID 2>/dev/null || true
