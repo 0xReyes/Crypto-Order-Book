@@ -1,0 +1,49 @@
+name: Run live server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  serve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go mod tidy && go build -o aggregator .
+      - name: Start server
+        env:
+          API_USER: demo
+          API_PASS: demo
+          JWT_SECRET: github-actions-tunnel-secret
+        run: |
+          ./aggregator &
+          for i in $(seq 1 10); do
+            curl -sf http://localhost:8080/api/v1/health > /dev/null && break
+            sleep 2
+          done
+          echo "✅ Server up"
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/download/2025.2.1/cloudflared-linux-amd64 \
+            -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+      - name: Open tunnel
+        run: |
+          MAX=5; A=0; URL=""
+          while [ -z "$URL" ] && [ $A -lt $MAX ]; do
+            A=$((A+1)); pkill -f cloudflared || true; sleep 2; > /tmp/cf.log
+            cloudflared tunnel --url http://localhost:8080 --no-autoupdate 2>&1 | tee /tmp/cf.log &
+            CF_PID=$!
+            for i in $(seq 1 20); do
+              URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf.log | head -1)
+              [ -n "$URL" ] && break
+              grep -q 'failed to unmarshal\|ERR.*QuickTunnel' /tmp/cf.log && sleep 10 && break
+              sleep 1
+            done
+          done
+          [ -z "$URL" ] && echo "❌ No tunnel" && exit 1
+          echo "🌐 $URL/login  (demo/demo)"
+          wait $CF_PID

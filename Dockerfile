@@ -9,11 +9,8 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/aggregator .
 COPY static/ ./static/
-
 EXPOSE 8080
 ENV PORT=8080
-
 HEALTHCHECK --interval=15s --timeout=3s --retries=3 \
   CMD wget -qO- http://localhost:8080/api/v1/health || exit 1
-
 ENTRYPOINT ["./aggregator"]

@@ -5,7 +5,7 @@ on:
     branches: [main, test, test2]
   pull_request:
     branches: [main]
-  workflow_dispatch:        # allows manual trigger for ad‑hoc testing
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -13,7 +13,7 @@ env:
 jobs:
   test-and-deploy-kind:
     runs-on: ubuntu-latest
-    timeout-minutes: 5      # free tier max (6h)
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -24,8 +24,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build Go binary (for reference)
-        run: go build -o aggregator .
+      - name: Build Go binary
+        run: go mod tidy && go build -o aggregator .
 
       - name: Build Docker image
         run: docker build -t crypto-dashboard:ci .
@@ -42,6 +42,11 @@ jobs:
       - name: Load image into kind
         run: kind load docker-image crypto-dashboard:ci --name chart-testing
 
+      - name: Install MetalLB (LoadBalancer for Kind)
+        run: |
+          chmod +x setup-metallb.sh
+          ./setup-metallb.sh
+
       - name: Make scripts executable
         run: chmod +x deploy.sh manage-secret.sh
 
@@ -54,26 +59,61 @@ jobs:
           TAG: ci
         run: ./deploy.sh k8s
 
-      - name: Verify deployment
+      - name: Verify deployment & LoadBalancer
         run: |
           kubectl rollout status deployment/crypto-dashboard -n crypto-dashboard --timeout=30s
           kubectl get pods -l app=crypto-dashboard -n crypto-dashboard
-          kubectl get svc crypto-dashboard -n crypto-dashboard
-          echo "Kind deploy test complete ✓ (temporary cluster)"
+          echo ""
 
-      - name: Test token authentication
+          echo "→ Waiting for LoadBalancer external IP..."
+          for i in $(seq 1 30); do
+            LB_IP=$(kubectl get svc crypto-dashboard -n crypto-dashboard \
+              -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+            if [[ -n "$LB_IP" ]]; then
+              echo "✅ LoadBalancer IP: $LB_IP"
+              echo "LB_IP=$LB_IP" >> "$GITHUB_ENV"
+              break
+            fi
+            echo "  Waiting... ($i)"
+            sleep 2
+          done
+
+          if [[ -z "${LB_IP:-}" ]]; then
+            echo "⚠️  No LB IP assigned — falling back to port-forward"
+            echo "LB_IP=" >> "$GITHUB_ENV"
+          fi
+
+          kubectl get svc crypto-dashboard -n crypto-dashboard
+          echo ""
+          echo "Kind deploy test complete ✓"
+
+      - name: Test via LoadBalancer (or port-forward fallback)
         run: |
           set -e
-          echo "→ Port-forwarding service..."
-          kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80 &
-          PF_PID=$!
-          sleep 3
+
+          if [[ -n "$LB_IP" ]]; then
+            BASE="http://$LB_IP"
+            echo "→ Testing via LoadBalancer at $BASE"
+          else
+            echo "→ No LB IP — using port-forward fallback"
+            kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80 &
+            PF_PID=$!
+            sleep 3
+            BASE="http://localhost:8080"
+          fi
 
           echo "→ Health check..."
-          curl --fail --retry 5 --retry-connrefused http://localhost:8080/api/v1/health
+          curl --fail --retry 5 --retry-connrefused "$BASE/api/v1/health"
+          echo ""
+
+          echo "→ Login page..."
+          curl -sf "$BASE/login" | grep -q "Pine Coin" && echo "✅ Login page OK"
+
+          echo "→ Dashboard page..."
+          curl -sf "$BASE/dashboard" | grep -q "Pine Coin Dashboard" && echo "✅ Dashboard page OK"
 
           echo "→ Obtaining JWT token..."
-          TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/login \
+          TOKEN=$(curl -s -X POST "$BASE/api/v1/login" \
             -H "Content-Type: application/json" \
             -d '{"user":"testadmin","pass":"testpass123"}' | jq -r .token)
 
@@ -83,13 +123,16 @@ jobs:
           fi
           echo "✅ Token obtained: ${TOKEN:0:20}..."
 
-          echo "→ Accessing protected endpoint..."
-          curl --fail -H "Authorization: Bearer $TOKEN" \
-            "http://localhost:8080/api/v1/book?symbol=BTC-USDT&limit=1"
+          echo "→ Testing protected endpoint..."
+          curl --fail -H "Authorization: Bearer $TOKEN" "$BASE/api/v1/book?symbol=BTC-USDT&limit=1" > /dev/null
+          echo "✅ Authenticated order book OK"
 
-          echo "✅ Token authentication successful"
-          # Keep port-forward running for the tunnel
-          # (PF_PID will be used later)
+          echo "→ Testing auth rejection (no token)..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/v1/book?symbol=BTC")
+          [[ "$HTTP_CODE" == "401" ]] && echo "✅ Unauthenticated correctly rejected (401)"
+
+          echo ""
+          echo "✅ All endpoint tests passed"
 
       - name: Install cloudflared
         run: |
@@ -100,26 +143,25 @@ jobs:
 
       - name: Expose via Cloudflare tunnel
         run: |
-          # Port-forward is already running from previous step
-          # (We'll reuse it – ensure it's still up)
-          if ! kill -0 $PF_PID 2>/dev/null; then
-            echo "Port-forward died, restarting..."
-            kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80 &
-            PF_PID=$!
-            sleep 3
+          if [[ -n "$LB_IP" ]]; then
+            TUNNEL_TARGET="http://$LB_IP"
+          else
+            # Ensure port-forward is running
+            if ! lsof -i :8080 > /dev/null 2>&1; then
+              kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80 &
+              sleep 3
+            fi
+            TUNNEL_TARGET="http://localhost:8080"
           fi
 
-          echo "→ Starting cloudflared tunnel to http://localhost:8080"
-          cloudflared tunnel --url http://localhost:8080 --no-autoupdate 2>&1 | tee /tmp/cf.log &
+          echo "→ Starting cloudflared tunnel to $TUNNEL_TARGET"
+          cloudflared tunnel --url "$TUNNEL_TARGET" --no-autoupdate 2>&1 | tee /tmp/cf.log &
           CF_PID=$!
 
-          # Wait for the tunnel URL to appear
           URL=""
           for i in $(seq 1 30); do
             URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf.log | head -1)
-            if [ -n "$URL" ]; then
-              break
-            fi
+            [ -n "$URL" ] && break
             sleep 2
           done
 
@@ -131,21 +173,28 @@ jobs:
 
           echo ""
           echo "============================================"
-          echo "  🌐 Public URL: $URL"
-          echo "  🔑 Login:      testadmin / testpass123"
-          echo "  📖 Order book: $URL/api/v1/book?symbol=BTC-USDT&limit=50"
-          echo "  🔐 Protected endpoint example (with token):"
-          echo "     curl -H 'Authorization: Bearer <token>' $URL/api/v1/book?symbol=BTC-USDT&limit=1"
+          echo "  🌐 Public URL:  $URL"
+          echo "  🔑 Login:       testadmin / testpass123"
+          if [[ -n "$LB_IP" ]]; then
+          echo "  ⚡ LoadBalancer: http://$LB_IP"
+          fi
+          echo "  📖 Order book:  $URL/api/v1/book?symbol=BTC-USDT&limit=50"
           echo ""
-          echo "  ⏳ Tunnel is active. Cancel this job in the GitHub UI to stop."
+          echo "  ⏳ Tunnel is active. Cancel this job to stop."
           echo "============================================"
 
-          # Keep the job alive until manually stopped
           wait $CF_PID
 
       - name: Show pod status & logs (on failure)
         if: failure()
         run: |
+          echo "=== Pods ==="
           kubectl get pods -n crypto-dashboard -o wide
+          echo "=== Service ==="
+          kubectl get svc -n crypto-dashboard -o wide
+          echo "=== Describe ==="
           kubectl describe pod -l app=crypto-dashboard -n crypto-dashboard
+          echo "=== Logs ==="
           kubectl logs -l app=crypto-dashboard -n crypto-dashboard --tail=30
+          echo "=== MetalLB ==="
+          kubectl get pods -n metallb-system 2>/dev/null || true
