@@ -19,7 +19,8 @@ import (
 type SymbolFormat int
 
 const (
-	FormatNoSep           SymbolFormat = iota
+	FormatNoSep
+	SymbolFormat = iota
 	FormatDash
 	FormatUnderscore
 	FormatLower
@@ -44,33 +45,33 @@ type ExchangeConfig struct {
 }
 
 var exchangeConfigs = []ExchangeConfig{
-	{Name: "Binance", URLTemplate: "https://data-api.binance.vision/api/v3/depth?symbol=%s&limit=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatNoSep},
+	{Name: "Binance", URLTemplate: "https://data-api.binance.vision/api/v3/depth?symbol=%s&limit=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatNoSep},
 	{Name: "Coinbase", URLTemplate: "https://api.exchange.coinbase.com/products/%s/book?level=2", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatDash},
-	{Name: "Kraken", URLTemplate: "https://api.kraken.com/0/public/Depth?pair=%s&count=50", PathBids: "result.*.bids", PathAsks: "result.*.asks", SymbolFormat: FormatKraken},
-	{Name: "OKX", URLTemplate: "https://www.okx.com/api/v5/market/books?instId=%s&sz=50", PathBids: "data.0.bids", PathAsks: "data.0.asks", SymbolFormat: FormatDash},
+	{Name: "Kraken", URLTemplate: "https://api.kraken.com/0/public/Depth?pair=%s&count=10", PathBids: "result.*.bids", PathAsks: "result.*.asks", SymbolFormat: FormatKraken},
+	{Name: "OKX", URLTemplate: "https://www.okx.com/api/v5/market/books?instId=%s&sz=10", PathBids: "data.0.bids", PathAsks: "data.0.asks", SymbolFormat: FormatDash},
 	{Name: "KuCoin", URLTemplate: "https://api.kucoin.com/api/v1/market/orderbook/level2_100?symbol=%s", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatDash},
 	{Name: "Bitfinex", URLTemplate: "https://api-pub.bitfinex.com/v2/book/%s/P0?len=25", PathBids: "_bitfinex", PathAsks: "_bitfinex", SymbolFormat: FormatBitfinex, QuoteMap: map[string]string{"USDT": "UST"}},
-	{Name: "Gemini", URLTemplate: "https://api.gemini.com/v1/book/%s?limit_bids=50&limit_asks=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatLower, QuoteMap: map[string]string{"USDT": "USD"}},
-	{Name: "Gate.io", URLTemplate: "https://api.gateio.ws/api/v4/spot/order_book?currency_pair=%s&limit=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatUnderscore},
+	{Name: "Gemini", URLTemplate: "https://api.gemini.com/v1/book/%s?limit_bids=10&limit_asks=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatLower, QuoteMap: map[string]string{"USDT": "USD"}},
+	{Name: "Gate.io", URLTemplate: "https://api.gateio.ws/api/v4/spot/order_book?currency_pair=%s&limit=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatUnderscore},
 	{Name: "HTX", URLTemplate: "https://api.huobi.pro/market/depth?symbol=%s&type=step0", PathBids: "tick.bids", PathAsks: "tick.asks", SymbolFormat: FormatLower},
-	{Name: "Crypto.com", URLTemplate: "https://api.crypto.com/exchange/v1/public/get-book?instrument_name=%s&depth=50", PathBids: "result.data.0.bids", PathAsks: "result.data.0.asks", SymbolFormat: FormatUnderscore},
+	{Name: "Crypto.com", URLTemplate: "https://api.crypto.com/exchange/v1/public/get-book?instrument_name=%s&depth=10", PathBids: "result.data.0.bids", PathAsks: "result.data.0.asks", SymbolFormat: FormatUnderscore},
 	{Name: "Bitstamp", URLTemplate: "https://www.bitstamp.net/api/v2/order_book/%s/", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatLower},
-	{Name: "MEXC", URLTemplate: "https://api.mexc.com/api/v3/depth?symbol=%s&limit=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatNoSep},
-	{Name: "Bitget", URLTemplate: "https://api.bitget.com/api/v2/spot/market/orderbook?symbol=%s&limit=50", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatNoSep},
-	{Name: "BingX", URLTemplate: "https://open-api.bingx.com/openApi/spot/v1/market/depth?symbol=%s&limit=50", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatDash},
-	{Name: "BitMart", URLTemplate: "https://api-cloud.bitmart.com/spot/quotation/v3/books?symbol=%s&limit=50", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatUnderscore},
+	{Name: "MEXC", URLTemplate: "https://api.mexc.com/api/v3/depth?symbol=%s&limit=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatNoSep},
+	{Name: "Bitget", URLTemplate: "https://api.bitget.com/api/v2/spot/market/orderbook?symbol=%s&limit=10", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatNoSep},
+	{Name: "BingX", URLTemplate: "https://open-api.bingx.com/openApi/spot/v1/market/depth?symbol=%s&limit=10", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatDash},
+	{Name: "BitMart", URLTemplate: "https://api-cloud.bitmart.com/spot/quotation/v3/books?symbol=%s&limit=10", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatUnderscore},
 	{Name: "Phemex", URLTemplate: "https://api.phemex.com/md/spot/orderbook?symbol=s%s", PathBids: "result.book.bids", PathAsks: "result.book.asks", SymbolFormat: FormatNoSep},
 	{Name: "AscendEX", URLTemplate: "https://ascendex.com/api/pro/v1/depth?symbol=%s", PathBids: "data.data.bids", PathAsks: "data.data.asks", SymbolFormat: FormatSlash},
-	{Name: "Poloniex", URLTemplate: "https://api.poloniex.com/markets/%s/orderBook?limit=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatUnderscore, FlatArray: true},
+	{Name: "Poloniex", URLTemplate: "https://api.poloniex.com/markets/%s/orderBook?limit=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatUnderscore, FlatArray: true},
 	{Name: "LBank", URLTemplate: "https://api.lbkex.com/v2/depth.do?symbol=%s&size=60", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatLowerUnderscore},
-	{Name: "Bitrue", URLTemplate: "https://openapi.bitrue.com/api/v1/depth?symbol=%s&limit=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatNoSep},
-	{Name: "WhiteBIT", URLTemplate: "https://whitebit.com/api/v4/public/orderbook/%s?limit=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatUnderscore},
-	{Name: "DigiFinex", URLTemplate: "https://openapi.digifinex.com/v3/order_book?symbol=%s&limit=50", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatLowerUnderscore},
+	{Name: "Bitrue", URLTemplate: "https://openapi.bitrue.com/api/v1/depth?symbol=%s&limit=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatNoSep},
+	{Name: "WhiteBIT", URLTemplate: "https://whitebit.com/api/v4/public/orderbook/%s?limit=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatUnderscore},
+	{Name: "DigiFinex", URLTemplate: "https://openapi.digifinex.com/v3/order_book?symbol=%s&limit=10", PathBids: "bids", PathAsks: "asks", SymbolFormat: FormatLowerUnderscore},
 	{Name: "CoinW", URLTemplate: "https://api.coinw.com/api/v1/public?command=returnOrderBook&currencyPair=%s", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatUnderscore},
-	{Name: "BigONE", URLTemplate: "https://big.one/api/v3/asset_pairs/%s/depth?limit=50", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatDash},
-	{Name: "Pionex", URLTemplate: "https://api.pionex.com/api/v1/market/depth?symbol=%s&limit=50", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatUnderscore},
-	{Name: "XT", URLTemplate: "https://sapi.xt.com/v4/public/depth?symbol=%s&limit=50", PathBids: "result.bids", PathAsks: "result.asks", SymbolFormat: FormatLowerUnderscore},
-	{Name: "Toobit", URLTemplate: "https://api.toobit.com/quote/v1/depth?symbol=%s&limit=50", PathBids: "b", PathAsks: "a", SymbolFormat: FormatNoSep},
+	{Name: "BigONE", URLTemplate: "https://big.one/api/v3/asset_pairs/%s/depth?limit=10", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatDash},
+	{Name: "Pionex", URLTemplate: "https://api.pionex.com/api/v1/market/depth?symbol=%s&limit=10", PathBids: "data.bids", PathAsks: "data.asks", SymbolFormat: FormatUnderscore},
+	{Name: "XT", URLTemplate: "https://sapi.xt.com/v4/public/depth?symbol=%s&limit=10", PathBids: "result.bids", PathAsks: "result.asks", SymbolFormat: FormatLowerUnderscore},
+	{Name: "Toobit", URLTemplate: "https://api.toobit.com/quote/v1/depth?symbol=%s&limit=10", PathBids: "b", PathAsks: "a", SymbolFormat: FormatNoSep},
 }
 
 type OrderPoint struct {
