@@ -4,38 +4,38 @@ set -euo pipefail
 # ============================================================
 #  deploy.sh — Build, deploy, and run crypto-dashboard
 #  Supports: docker | k8s | bare
-#  Safe for local testing with random secrets
+#  Works the same in local dev and CI (when CI=true)
 # ============================================================
 
 MODE="${1:-docker}"
 IMAGE_NAME="crypto-dashboard"
-IMAGE_TAG="${TAG:-latest}"  # override with --tag or env var TAG=ci ./deploy.sh
+IMAGE_TAG="${TAG:-latest}"          # override with TAG=ci ./deploy.sh ...
+NAMESPACE="crypto-dashboard"
+CI="${CI:-false}"                    # set to "true" in GitHub Actions
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Deploying crypto-dashboard ($MODE mode) — tag: $IMAGE_TAG"
+echo "  Deploying crypto-dashboard ($MODE mode)"
+echo "  Tag: $IMAGE_TAG | CI: $CI"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# ────────────────────────────────────────────────
-# Generate random secrets if not provided
-# ────────────────────────────────────────────────
-if [[ -z "${JWT_SECRET:-}" ]]; then
-  JWT_SECRET=$(openssl rand -base64 48 2>/dev/null || echo "fallback-dev-secret-$(date +%s)-insecure")
-  echo "⚠️  JWT_SECRET auto-generated for this session:"
-  echo "    $JWT_SECRET"
-  echo "   (never use in production!)"
-  echo ""
-fi
+# ----------------------------------------------------------------------
+# Helper: load image into local cluster (kind / minikube) if present
+# ----------------------------------------------------------------------
+load_image_to_cluster() {
+  if command -v kind &>/dev/null; then
+    echo "→ Loading image into kind..."
+    kind load docker-image "$IMAGE_NAME:$IMAGE_TAG" || true
+  elif command -v minikube &>/dev/null; then
+    echo "→ Loading image into minikube..."
+    minikube image load "$IMAGE_NAME:$IMAGE_TAG" || true
+  fi
+}
 
-API_USER="${API_USER:-testadmin}"
-API_PASS="${API_PASS:-$(openssl rand -base64 24 2>/dev/null || echo "demo-$(date +%s)")}"
-if [[ "$API_PASS" == demo-* ]]; then
-  echo "⚠️  Using fallback API_PASS: $API_PASS"
-fi
-
-case "$MODE" in
-
-docker)
-  echo "→ Building Docker image ($IMAGE_NAME:$IMAGE_TAG)..."
+# ----------------------------------------------------------------------
+# Mode: docker
+# ----------------------------------------------------------------------
+if [ "$MODE" = "docker" ]; then
+  echo "→ Building Docker image..."
   docker build -t "$IMAGE_NAME:$IMAGE_TAG" .
 
   echo "→ Stopping & removing old container..."
@@ -49,9 +49,9 @@ docker)
     --memory=256m \
     --cpus=0.5 \
     -e PORT=8080 \
-    -e JWT_SECRET="$JWT_SECRET" \
-    -e API_USER="$API_USER" \
-    -e API_PASS="$API_PASS" \
+    -e JWT_SECRET="${JWT_SECRET:-$(openssl rand -base64 48)}" \
+    -e API_USER="${API_USER:-testadmin}" \
+    -e API_PASS="${API_PASS:-$(openssl rand -base64 24)}" \
     "$IMAGE_NAME:$IMAGE_TAG"
 
   echo "→ Waiting for health check (up to 30s)..."
@@ -62,97 +62,96 @@ docker)
     fi
     echo "   Waiting... ($i/15)"
     sleep 2
-  done || echo "   Warning: health check timed out"
+  done
 
   echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "✅ Container running"
-  echo "   URL:          http://localhost:8080"
-  echo "   Login:        $API_USER / $API_PASS"
-  echo "   JWT_SECRET:   $JWT_SECRET (copy for tokens)"
-  echo ""
-  echo "   Logs:         docker logs -f crypto-dashboard"
-  echo "   Stop:         docker stop crypto-dashboard"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  ;;
+  echo "   URL:    http://localhost:8080"
+  echo "   Logs:   docker logs -f crypto-dashboard"
+  exit 0
+fi
 
-k8s)
-  echo "→ Building Docker image ($IMAGE_NAME:$IMAGE_TAG)..."
-  docker build -t "$IMAGE_NAME:$IMAGE_TAG" .
-
-  # Load to local cluster if detected
-  if command -v minikube >/dev/null 2>&1; then
-    echo "→ Detected minikube → loading image..."
-    minikube image load "$IMAGE_NAME:$IMAGE_TAG" || true
-  elif command -v kind >/dev/null 2>&1; then
-    echo "→ Detected kind → loading image..."
-    kind load docker-image "$IMAGE_NAME:$IMAGE_TAG" || true
-  fi
-
-  echo ""
-  echo "⚠️ Kubernetes mode"
-  echo "   Namespace: crypto-dashboard"
-  echo "   Secrets:   crypto-dashboard-secrets"
-
-  # Auto-patch secrets if --force-secrets flag is passed
-  if [[ "${2:-}" == "--force-secrets" ]]; then
-    echo "→ Auto-patching secrets with generated values..."
-    kubectl create secret generic crypto-dashboard-secrets \
-      --namespace crypto-dashboard \
-      --from-literal=JWT_SECRET="$JWT_SECRET" \
-      --from-literal=API_USER="$API_USER" \
-      --from-literal=API_PASS="$API_PASS" \
-      --dry-run=client -o yaml | kubectl apply -f -
-  else
-    echo "→ Using existing secret.yaml (edit manually if needed)"
-    echo "   Quick patch command:"
-    echo "     kubectl create secret generic crypto-dashboard-secrets \\"
-    echo "       --namespace crypto-dashboard \\"
-    echo "       --from-literal=JWT_SECRET=\"$JWT_SECRET\" \\"
-    echo "       --from-literal=API_USER=\"$API_USER\" \\"
-    echo "       --from-literal=API_PASS=\"$API_PASS\" \\"
-    echo "       --dry-run=client -o yaml | kubectl apply -f -"
-  fi
-
-  echo "→ Applying manifests..."
-  kubectl apply -f namespace.yaml     || echo "→ namespace skipped/missing"
-  kubectl apply -f deployment.yaml    || echo "→ deployment failed"
-  kubectl apply -f service.yaml       || echo "→ service failed"
-  kubectl apply -f hpa.yaml           || echo "→ hpa skipped/optional"
-  kubectl apply -f ingress.yaml       || echo "→ ingress skipped/optional"
-
-  echo "→ Waiting for rollout (up to 2 min)..."
-  kubectl rollout status deployment/crypto-dashboard \
-    --namespace crypto-dashboard \
-    --timeout=120s || true
-
-  echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "✅ Kubernetes deployment attempted"
-  echo "   Pods:         kubectl get pods -n crypto-dashboard"
-  echo "   Service:      kubectl get svc -n crypto-dashboard"
-  echo "   Logs:         kubectl logs -f deployment/crypto-dashboard -n crypto-dashboard"
-  echo "   Port-forward: kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  ;;
-
-bare)
+# ----------------------------------------------------------------------
+# Mode: bare (direct Go execution)
+# ----------------------------------------------------------------------
+if [ "$MODE" = "bare" ]; then
   echo "→ Building Go binary..."
-  go build -o aggregator ./main.go || { echo "Build failed"; exit 1; }
+  go build -o aggregator ./main.go
 
   echo "→ Starting server in foreground..."
   echo "   (Ctrl+C to stop)"
   echo ""
-  JWT_SECRET="$JWT_SECRET" API_USER="$API_USER" API_PASS="$API_PASS" ./aggregator
-  ;;
+  JWT_SECRET="${JWT_SECRET:-$(openssl rand -base64 48)}" \
+    API_USER="${API_USER:-testadmin}" \
+    API_PASS="${API_PASS:-$(openssl rand -base64 24)}" \
+    ./aggregator
+  exit 0
+fi
 
-*)
-  echo "Usage: $0 {docker|k8s|bare} [--force-secrets]"
-  echo "  Examples:"
-  echo "    ./deploy.sh docker"
-  echo "    ./deploy.sh k8s --force-secrets"
-  echo "    JWT_SECRET=supersecret ./deploy.sh bare"
+# ----------------------------------------------------------------------
+# Mode: k8s (default if not docker/bare)
+# ----------------------------------------------------------------------
+if [ "$MODE" != "k8s" ]; then
+  echo "Unknown mode: $MODE. Use docker|k8s|bare"
   exit 1
-  ;;
+fi
 
-esac
+# ----------------------------------------------------------------------
+# Kubernetes mode
+# ----------------------------------------------------------------------
+# 1. Build image only if not in CI (CI already built it)
+if [ "$CI" != "true" ]; then
+  echo "→ Building Docker image..."
+  docker build -t "$IMAGE_NAME:$IMAGE_TAG" .
+  load_image_to_cluster
+else
+  echo "→ CI mode: assuming image '$IMAGE_NAME:$IMAGE_TAG' is already present"
+fi
+
+# 2. Ensure namespace exists
+echo "→ Creating namespace (if not exists)..."
+kubectl apply -f namespace.yaml
+
+# 3. Manage secrets using the dedicated script
+echo "→ Managing secrets..."
+if [ "$CI" = "true" ]; then
+  # In CI, secrets must be passed via environment
+  : "${JWT_SECRET:?JWT_SECRET not set}"
+  : "${API_USER:?API_USER not set}"
+  : "${API_PASS:?API_PASS not set}"
+  ./manage-secret.sh --namespace "$NAMESPACE" \
+    --set "JWT_SECRET=$JWT_SECRET" \
+    --set "API_USER=$API_USER" \
+    --set "API_PASS=$API_PASS"
+else
+  # Locally, auto-generate missing secrets
+  ./manage-secret.sh --namespace "$NAMESPACE" --generate
+fi
+
+# 4. Apply remaining manifests
+echo "→ Applying deployment, service, HPA, ingress..."
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+kubectl apply -f hpa.yaml        # optional – will fail if file missing, so we check
+kubectl apply -f ingress.yaml    # optional
+
+# 5. Force image tag (in case deployment.yaml uses a different tag)
+echo "→ Ensuring image tag is $IMAGE_TAG"
+kubectl set image deployment/crypto-dashboard \
+  "dashboard=$IMAGE_NAME:$IMAGE_TAG" \
+  --namespace "$NAMESPACE"
+
+# 6. Wait for rollout
+echo "→ Waiting for rollout (up to 2 minutes)..."
+kubectl rollout status deployment/crypto-dashboard \
+  --namespace "$NAMESPACE" \
+  --timeout=120s
+
+# 7. Show status
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Kubernetes deployment ready"
+echo "   Pods:         kubectl get pods -n $NAMESPACE"
+echo "   Service:      kubectl get svc -n $NAMESPACE"
+echo "   Port-forward: kubectl port-forward svc/crypto-dashboard -n $NAMESPACE 8080:80"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

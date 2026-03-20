@@ -32,47 +32,35 @@ jobs:
         with:
           version: v0.24.0
           config: .github/kind-config.yaml
-          cluster_name: chart-testing   # your custom name
+          cluster_name: chart-testing
           wait: 60s
           verbosity: 1
 
       - name: Load image into kind
         run: kind load docker-image crypto-dashboard:ci --name chart-testing
 
-      - name: Create namespace
-        run: kubectl apply -f namespace.yaml   # no || true – fail if can't create
+      - name: Make scripts executable
+        run: chmod +x deploy.sh manage-secret.sh
 
-      - name: Deploy secrets (for testing)
-        run: |
-          cat <<EOF | kubectl apply -f -
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: crypto-dashboard-secrets
-            namespace: crypto-dashboard
-          type: Opaque
-          stringData:
-            JWT_SECRET: "kind-test-secret-1234567890"
-            API_USER: "testadmin"
-            API_PASS: "testpass123"
-          EOF
+      - name: Deploy with unified script (CI mode)
+        env:
+          CI: true
+          JWT_SECRET: "kind-test-secret-1234567890"
+          API_USER: "testadmin"
+          API_PASS: "testpass123"
+          TAG: ci
+        run: ./deploy.sh k8s
 
-      - name: Deploy other manifests
+      - name: Verify deployment
         run: |
-          kubectl apply -f deployment.yaml -n crypto-dashboard
-          kubectl apply -f service.yaml -n crypto-dashboard
-          kubectl set image deployment/crypto-dashboard dashboard=crypto-dashboard:ci -n crypto-dashboard
-
-      - name: Wait for rollout & verify
-        run: |
-          kubectl rollout status deployment/crypto-dashboard -n crypto-dashboard --timeout=120s || true
+          kubectl rollout status deployment/crypto-dashboard -n crypto-dashboard --timeout=30s
           kubectl get pods -l app=crypto-dashboard -n crypto-dashboard
           kubectl get svc crypto-dashboard -n crypto-dashboard
           echo "Kind deploy test complete ✓ (temporary cluster)"
 
-      - name: Show pod status & logs
-        if: always()
+      - name: Show pod status & logs (on failure)
+        if: failure()
         run: |
           kubectl get pods -n crypto-dashboard -o wide
-          kubectl describe pod -l app=crypto-dashboard -n crypto-dashboard || true
-          kubectl logs -l app=crypto-dashboard -n crypto-dashboard --tail=30 || true
+          kubectl describe pod -l app=crypto-dashboard -n crypto-dashboard
+          kubectl logs -l app=crypto-dashboard -n crypto-dashboard --tail=30
