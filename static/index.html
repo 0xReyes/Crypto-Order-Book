@@ -3,736 +3,596 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Order Book — Aggregator</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<title>Crypto Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg:#080b0f; --bg2:#0d1117; --bg3:#131920; --border:#1e2730;
-    --bid:#00e676; --bid-dim:rgba(0,230,118,0.08); --ask:#ff3d5a;
-    --ask-dim:rgba(255,61,90,0.08); --text:#e8edf2; --muted:#4a5568;
-    --accent:#3d8ef0; --gold:#f0a500;
-    --mono:'IBM Plex Mono',monospace; --sans:'Syne',sans-serif;
+    --bg-primary: #141518;
+    --bg-secondary: #1b1c22;
+    --bg-tertiary: #23242b;
+    --bg-card: #1e1f26;
+    --border: #2a2b33;
+    --text-primary: #e8e9ed;
+    --text-secondary: #8a8d98;
+    --text-muted: #555862;
+    --green: #21c45d;
+    --green-dim: rgba(33,196,93,0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.12);
+    --accent: #3b82f6;
+    --yellow: #eab308;
+    --orange: #f97316;
+    --purple: #a855f7;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
   }
-  html,body { height:100%; background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; overflow-x:hidden; }
-
-  /* HEADER */
-  header {
-    display:flex; align-items:center; gap:20px;
-    padding:12px 24px; border-bottom:1px solid var(--border);
-    background:var(--bg2); position:sticky; top:0; z-index:100; flex-wrap:wrap;
-  }
-  .logo { font-family:var(--sans); font-weight:800; font-size:17px; letter-spacing:-0.5px; white-space:nowrap; }
-  .logo span { color:var(--accent); }
-  .symbol-input-wrap { display:flex; align-items:center; gap:6px; }
-  .symbol-input {
-    background:var(--bg3); border:1px solid var(--border); color:var(--text);
-    font-family:var(--mono); font-size:13px; padding:6px 10px;
-    border-radius:4px; width:80px; text-transform:uppercase; outline:none; transition:border-color 0.2s;
-  }
-  .symbol-input:focus { border-color:var(--accent); }
-  .fetch-btn {
-    background:var(--accent); color:#fff; border:none; cursor:pointer;
-    font-family:var(--mono); font-size:12px; font-weight:600;
-    padding:6px 14px; border-radius:4px; letter-spacing:0.5px; transition:opacity 0.15s; white-space:nowrap;
-  }
-  .fetch-btn:hover { opacity:0.85; } .fetch-btn:disabled { opacity:0.4; cursor:not-allowed; }
-  .stat-chips { display:flex; gap:16px; flex-wrap:wrap; }
-  .chip { display:flex; flex-direction:column; gap:2px; }
-  .chip-label { color:var(--muted); font-size:10px; letter-spacing:0.8px; text-transform:uppercase; }
-  .chip-val { font-size:13px; font-weight:500; }
-  .chip-val.bid { color:var(--bid); } .chip-val.ask { color:var(--ask); }
-  .chip-val.spread { color:var(--gold); }
-  .chip-val.spread.negative { color:var(--ask); }
-  .price-hero { display:flex; align-items:baseline; gap:10px; margin-left:auto; }
-  .price-val { font-family:var(--sans); font-size:26px; font-weight:700; letter-spacing:-1px; }
-  .price-label { color:var(--muted); font-size:11px; }
-  .refresh-status { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:11px; white-space:nowrap; }
-  .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex-shrink:0; }
-  .dot.live { background:var(--bid); box-shadow:0 0 6px var(--bid); }
-  .dot.stale { background:var(--gold); box-shadow:0 0 6px var(--gold); }
-  .crossed-badge {
-    font-size:9px; padding:2px 6px; border-radius:3px;
-    background:rgba(255,61,90,0.15); color:var(--ask);
-    border:1px solid rgba(255,61,90,0.3); letter-spacing:0.5px;
-    font-weight:600; display:none;
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary); color: var(--text-primary);
+    line-height: 1.5; overflow-x: hidden;
   }
 
-  /* LAYOUT */
-  .main { display:grid; grid-template-columns:1fr 1fr; grid-template-rows:280px 1fr; gap:1px; height:calc(100vh - 57px); background:var(--border); }
-  .panel { background:var(--bg2); overflow:hidden; display:flex; flex-direction:column; }
-  .panel-depth { grid-column:1 / -1; }
-  .panel-header {
-    padding:8px 16px; border-bottom:1px solid var(--border);
-    font-family:var(--sans); font-size:11px; font-weight:600;
-    letter-spacing:1.5px; text-transform:uppercase; color:var(--muted);
-    display:flex; align-items:center; gap:10px; flex-shrink:0; flex-wrap:wrap;
+  /* --- Login Overlay --- */
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg-primary);
+    display: flex; align-items: center; justify-content: center;
   }
-  .badge { font-size:10px; padding:1px 6px; border-radius:3px; font-family:var(--mono); font-weight:400; letter-spacing:0; }
-  .badge-bid { background:var(--bid-dim); color:var(--bid); border:1px solid rgba(0,230,118,0.2); }
-  .badge-ask { background:var(--ask-dim); color:var(--ask); border:1px solid rgba(255,61,90,0.2); }
-
-  /* DEPTH CHART HEADER */
-  .depth-header { padding:8px 16px 6px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; }
-  .depth-header-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .depth-title { font-family:var(--sans); font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
-  .zoom-group { display:flex; gap:4px; margin-left:auto; }
-  .zoom-btn {
-    background:var(--bg3); border:1px solid var(--border); color:var(--muted);
-    font-family:var(--mono); font-size:10px; padding:3px 9px; border-radius:3px;
-    cursor:pointer; transition:all 0.15s; letter-spacing:0.5px;
+  .login-overlay.hidden { display: none; }
+  .login-box {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 40px 36px; width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   }
-  .zoom-btn:hover { border-color:var(--accent); color:var(--accent); }
-  .zoom-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-  .depth-summary { display:flex; gap:24px; margin-top:5px; }
-  .depth-side { display:flex; flex-direction:column; gap:1px; }
-  .depth-side-label { font-size:10px; letter-spacing:0.8px; color:var(--muted); }
-  .depth-side-val { font-size:13px; font-weight:600; font-family:var(--mono); }
-  .depth-side-val.bid-val { color:var(--bid); }
-  .depth-side-val.ask-val { color:var(--ask); }
-
-  /* CANVAS */
-  #depthCanvas { width:100%; flex:1; display:block; cursor:crosshair; }
-
-  /* TOOLTIP */
-  #depthTooltip {
-    position:fixed; display:none; pointer-events:none; z-index:200;
-    background:rgba(13,17,23,0.96); border:1px solid var(--border);
-    border-radius:5px; padding:10px 14px; font-size:11px; line-height:1.8;
-    min-width:200px; box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  .login-box h1 {
+    font-size: 22px; font-weight: 700; margin-bottom: 4px;
+    letter-spacing: -0.5px;
   }
-  .tt-price { font-family:var(--sans); font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; }
-  .tt-row { display:flex; justify-content:space-between; gap:16px; }
-  .tt-label { color:var(--muted); }
-  .tt-bid { color:var(--bid); font-weight:500; }
-  .tt-ask { color:var(--ask); font-weight:500; }
-
-  /* ORDER BOOK TABLE */
-  .ob-scroll { overflow-y:auto; flex:1; }
-  .ob-scroll::-webkit-scrollbar { width:4px; }
-  .ob-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-  table { width:100%; border-collapse:collapse; }
-  thead th {
-    position:sticky; top:0; background:var(--bg2);
-    padding:8px 14px; text-align:right; color:var(--muted);
-    font-size:10px; letter-spacing:0.8px; text-transform:uppercase;
-    border-bottom:1px solid var(--border); font-weight:400; z-index:2;
+  .login-box h1 span { color: var(--green); }
+  .login-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+  .login-field {
+    display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;
   }
-  thead th:first-child { text-align:left; }
-  tbody tr { transition:background 0.1s; }
-  tbody tr:hover { background:rgba(255,255,255,0.03); }
-  td { padding:4px 14px; text-align:right; font-size:12px; white-space:nowrap; line-height:1.7; }
-  td:first-child { text-align:left; }
-  .bid-row td.price { color:var(--bid); font-weight:500; }
-  .ask-row td.price { color:var(--ask); font-weight:500; }
-  td.size { color:var(--text); } td.cum { color:var(--muted); }
-  .bid-row { background:linear-gradient(to left, var(--bid-dim) var(--depth,0%), transparent var(--depth,0%)); }
-  .ask-row { background:linear-gradient(to right, var(--ask-dim) var(--depth,0%), transparent var(--depth,0%)); }
-
-  /* EXCHANGE PANEL */
-  .ex-grid { display:flex; flex-direction:column; overflow-y:auto; flex:1; }
-  .ex-grid::-webkit-scrollbar { width:4px; }
-  .ex-grid::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-  .ex-row {
-    display:grid; grid-template-columns:130px 1fr 1fr 80px;
-    align-items:center; padding:7px 14px; border-bottom:1px solid rgba(30,39,48,0.6);
-    gap:8px; transition:background 0.1s;
+  .login-field label {
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.5px;
   }
-  .ex-row:hover { background:rgba(255,255,255,0.02); }
-  .ex-row.error { opacity:0.35; }
-  .ex-name { font-weight:500; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ex-mid { font-size:12px; text-align:right; }
-  .ex-spread { font-size:11px; color:var(--gold); text-align:right; }
-  .ex-levels { font-size:10px; color:var(--muted); text-align:right; }
-  .ex-err { font-size:10px; color:var(--ask); opacity:0.7; grid-column:2/-1; }
-
-  /* LOADING */
-  #loadOverlay {
-    position:fixed; inset:0; background:var(--bg);
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:20px; z-index:999;
+  .login-field input {
+    background: var(--bg-tertiary); border: 1px solid var(--border);
+    color: var(--text-primary); padding: 10px 14px; border-radius: 6px;
+    font-size: 14px; outline: none; transition: border-color 0.15s;
   }
-  .spinner { width:36px; height:36px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  #loadOverlay p { color:var(--muted); font-size:12px; letter-spacing:1px; }
+  .login-field input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 11px; border: none; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 14px;
+    font-weight: 600; cursor: pointer; margin-top: 8px;
+    transition: opacity 0.15s;
+  }
+  .login-btn:hover { opacity: 0.9; }
+  .login-btn:disabled { opacity: 0.5; cursor: wait; }
+  .login-error {
+    color: var(--red); font-size: 12px; margin-top: 10px;
+    background: var(--red-dim); padding: 8px; border-radius: 4px;
+    display: none;
+  }
+  .login-error.show { display: block; }
 
-  @media (max-width:768px) {
-    .main { grid-template-columns:1fr; grid-template-rows:240px auto auto; }
-    .panel-depth { grid-column:1; }
-    .price-hero { margin-left:0; }
-    .stat-chips { display:none; }
+  /* --- Header --- */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px; background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo span { color: var(--green); }
+  .tab-active {
+    font-size: 13px; font-weight: 600;
+    background: var(--bg-tertiary); padding: 6px 16px;
+    border-radius: 6px; border: 1px solid var(--border);
+  }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .coin-selector {
+    background: var(--bg-tertiary); border: 1px solid var(--border);
+    color: var(--text-primary); padding: 6px 12px;
+    border-radius: 6px; font-size: 13px; cursor: pointer; outline: none;
+  }
+  .coin-selector:focus { border-color: var(--accent); }
+  .coin-selector option { background: var(--bg-secondary); }
+  .logout-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); padding: 5px 12px;
+    border-radius: 6px; font-size: 12px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .logout-btn:hover { color: var(--red); border-color: var(--red); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { font-size: 11px; color: var(--text-secondary); }
+
+  /* --- Price Bar --- */
+  .price-bar {
+    display: flex; align-items: center; gap: 32px;
+    padding: 16px 24px; background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .price-main {
+    font-size: 28px; font-weight: 700;
+    letter-spacing: -1px; font-variant-numeric: tabular-nums;
+  }
+  .price-change { font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+  .price-change.up { color: var(--green); background: var(--green-dim); }
+  .price-change.down { color: var(--red); background: var(--red-dim); }
+  .stat-item { display: flex; flex-direction: column; gap: 2px; }
+  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* --- Main Grid --- */
+  .main-grid {
+    display: grid; grid-template-columns: 1fr;
+    gap: 1px; background: var(--border);
+  }
+  .chart-card { background: var(--bg-card); padding: 20px; }
+  .card-header {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 16px;
+  }
+  .card-title { font-size: 14px; font-weight: 600; }
+  .card-subtitle { font-size: 11px; color: var(--text-muted); }
+  .time-buttons { display: flex; gap: 4px; }
+  .time-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); padding: 4px 10px;
+    border-radius: 4px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+  }
+  .time-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .time-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  #priceChart { width: 100%; height: 360px; }
+  #depthCanvas { width: 100%; height: 320px; }
+  #dominanceCanvas { width: 100%; height: 280px; }
+
+  .exchange-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .ex-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-tertiary); padding: 4px 10px;
+    border-radius: 4px; font-size: 11px; color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .ex-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .ex-chip .spread { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .footer {
+    padding: 16px 24px; text-align: center; font-size: 11px;
+    color: var(--text-muted); background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+  }
+
+  @media (min-width: 900px) {
+    .main-grid { grid-template-columns: 1fr 1fr; }
+    .chart-card:first-child { grid-column: 1 / -1; }
   }
 </style>
 </head>
 <body>
 
-<div id="loadOverlay"><div class="spinner"></div><p>FETCHING ORDER BOOK</p></div>
-<div id="depthTooltip">
-  <div class="tt-price" id="ttPrice">—</div>
-  <div class="tt-row"><span class="tt-label">Bid Value</span><span class="tt-bid" id="ttBidVal">—</span></div>
-  <div class="tt-row"><span class="tt-label">Bid Total</span><span class="tt-bid" id="ttBidTot">—</span></div>
-  <div class="tt-row"><span class="tt-label">Ask Value</span><span class="tt-ask" id="ttAskVal">—</span></div>
-  <div class="tt-row"><span class="tt-label">Ask Total</span><span class="tt-ask" id="ttAskTot">—</span></div>
+<!-- ==================== LOGIN OVERLAY ==================== -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h1>Crypto<span>Dash</span></h1>
+    <p>Sign in to access the dashboard</p>
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="loginUser" placeholder="demo" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="demo" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="loginBtn">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
 </div>
 
-<header>
-  <div class="logo">order<span>book</span></div>
-  <div class="symbol-input-wrap">
-    <input class="symbol-input" id="symbolInput" value="BTC" placeholder="BTC" spellcheck="false" />
-    <button class="fetch-btn" id="fetchBtn" onclick="load()">FETCH</button>
+<!-- ==================== DASHBOARD ==================== -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">Crypto<span>Dash</span></div>
+    <div class="tab-active">Overview</div>
   </div>
-  <div class="stat-chips">
-    <div class="chip"><span class="chip-label">Best Bid</span><span class="chip-val bid" id="hBid">—</span></div>
-    <div class="chip"><span class="chip-label">Best Ask</span><span class="chip-val ask" id="hAsk">—</span></div>
-    <div class="chip"><span class="chip-label">Spread</span><span class="chip-val spread" id="hSpread">—</span></div>
-    <div class="chip"><span class="chip-label">Mid</span><span class="chip-val" id="hMid">—</span></div>
-    <div class="chip"><span class="chip-label">Exchanges</span><span class="chip-val" id="hEx">—</span></div>
+  <div class="header-right">
+    <select class="coin-selector" id="coinSelect">
+      <option value="BTC" data-gecko="bitcoin">BTC — Bitcoin</option>
+      <option value="ETH" data-gecko="ethereum">ETH — Ethereum</option>
+      <option value="SOL" data-gecko="solana">SOL — Solana</option>
+      <option value="XRP" data-gecko="ripple">XRP — Ripple</option>
+      <option value="ADA" data-gecko="cardano">ADA — Cardano</option>
+      <option value="DOGE" data-gecko="dogecoin">DOGE — Dogecoin</option>
+      <option value="AVAX" data-gecko="avalanche-2">AVAX — Avalanche</option>
+      <option value="DOT" data-gecko="polkadot">DOT — Polkadot</option>
+      <option value="LINK" data-gecko="chainlink">LINK — Chainlink</option>
+      <option value="MATIC" data-gecko="matic-network">MATIC — Polygon</option>
+    </select>
+    <button class="logout-btn" id="logoutBtn">Logout</button>
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">Connecting…</span>
   </div>
-  <span class="crossed-badge" id="crossedBadge">CROSSED</span>
-  <div class="price-hero">
-    <span class="price-val" id="priceVal">—</span>
-    <span class="price-label" id="symbolLabel">BTC-USDT</span>
-  </div>
-  <div class="refresh-status">
-    <div class="dot" id="liveDot"></div>
-    <span id="lastUpdate">—</span>
-  </div>
-</header>
+</div>
 
-<div class="main">
+<div class="price-bar">
+  <div class="price-main" id="currentPrice">—</div>
+  <div class="price-change" id="priceChange">—</div>
+  <div class="stat-item"><span class="stat-label">Spread (Avg)</span><span class="stat-value" id="avgSpread">—</span></div>
+  <div class="stat-item"><span class="stat-label">Exchanges</span><span class="stat-value" id="exchangeCount">—</span></div>
+  <div class="stat-item"><span class="stat-label">Total Bid Depth</span><span class="stat-value" id="totalBidDepth">—</span></div>
+  <div class="stat-item"><span class="stat-label">Total Ask Depth</span><span class="stat-value" id="totalAskDepth">—</span></div>
+</div>
 
-  <!-- Depth Chart -->
-  <div class="panel panel-depth" style="display:flex;flex-direction:column;">
-    <div class="depth-header">
-      <div class="depth-header-top">
-        <span class="depth-title">Depth Chart</span>
-        <div class="depth-summary">
-          <div class="depth-side">
-            <span class="depth-side-label" id="bidPctLabel">BIDS -1%</span>
-            <span class="depth-side-val bid-val" id="bidUSDTotal">—</span>
-          </div>
-          <div class="depth-side">
-            <span class="depth-side-label" id="askPctLabel">ASKS +1%</span>
-            <span class="depth-side-val ask-val" id="askUSDTotal">—</span>
-          </div>
-        </div>
-        <div class="zoom-group">
-          <span style="color:var(--muted);font-size:10px;letter-spacing:0.5px;margin-right:2px;align-self:center;">ZOOM</span>
-          <button class="zoom-btn" data-zoom="0.005" onclick="setZoom(0.005)">0.5%</button>
-          <button class="zoom-btn active" data-zoom="0.01" onclick="setZoom(0.01)">1%</button>
-          <button class="zoom-btn" data-zoom="0.02" onclick="setZoom(0.02)">2%</button>
-          <button class="zoom-btn" data-zoom="0.05" onclick="setZoom(0.05)">5%</button>
-        </div>
+<div class="main-grid">
+  <div class="chart-card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Price Chart</div>
+        <div class="card-subtitle" id="priceChartSub">USD · 7 Days</div>
+      </div>
+      <div class="time-buttons" id="timeButtons">
+        <button class="time-btn" data-days="1">1D</button>
+        <button class="time-btn active" data-days="7">7D</button>
+        <button class="time-btn" data-days="30">1M</button>
+        <button class="time-btn" data-days="90">3M</button>
+        <button class="time-btn" data-days="365">1Y</button>
       </div>
     </div>
-    <canvas id="depthCanvas"></canvas>
+    <div id="priceChart"></div>
   </div>
 
-  <!-- Bids -->
-  <div class="panel">
-    <div class="panel-header">
-      Bids <span class="badge badge-bid" id="bidCount">0 levels</span>
+  <div class="chart-card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Order Book Depth</div>
+        <div class="card-subtitle" id="depthSub">Aggregated across all exchanges</div>
+      </div>
     </div>
-    <div class="ob-scroll">
-      <table><thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
-      <tbody id="bidsBody"></tbody></table>
-    </div>
+    <div id="depthWrap"><canvas id="depthCanvas"></canvas></div>
+    <div class="exchange-stats" id="exchangeChips"></div>
   </div>
 
-  <!-- Asks -->
-  <div class="panel">
-    <div class="panel-header">
-      Asks <span class="badge badge-ask" id="askCount">0 levels</span>
+  <div class="chart-card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Market Dominance</div>
+        <div class="card-subtitle">Individual cryptocurrency share</div>
+      </div>
     </div>
-    <div class="ob-scroll">
-      <table><thead><tr><th>Price</th><th>Size</th><th>Cumulative</th></tr></thead>
-      <tbody id="asksBody"></tbody></table>
-    </div>
+    <canvas id="dominanceCanvas"></canvas>
   </div>
-
 </div>
 
-<div style="background:var(--bg2);border-top:1px solid var(--border);overflow-x:auto;max-height:200px;overflow-y:auto;" id="exPanel">
-  <div style="padding:10px 16px;border-bottom:1px solid var(--border);font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:flex;gap:16px;">
-    <span>Exchange Breakdown</span>
-    <span style="margin-left:auto;font-weight:400;color:var(--muted)" id="exSummary"></span>
-  </div>
-  <div class="ex-grid" id="exGrid"></div>
-</div>
+<div class="footer">Data from CoinGecko & 25+ exchanges · Auto-refreshes every 30s · JWT Auth + Rate Limited</div>
 
 <script>
-/* ── Dual-mode: try API first, fallback to static data.json ─── */
-const API_PATH = '/api/v1/book';
-let DATA_MODE = 'api'; // 'api' or 'static'
+// ============================================================
+// Auth State
+// ============================================================
+let jwtToken = sessionStorage.getItem('jwt') || '';
 
-let currentData = null;
-let currentZoom = 0.01;
-let _rawBids = [], _rawAsks = [], _mid = 0, _bestBid = 0, _bestAsk = 0;
+function isLoggedIn() { return !!jwtToken; }
 
-/* ── Formatters ─────────────────────────────────────────── */
-function fmt(n, dec=2) {
-  if (n==null||isNaN(n)) return '—';
-  return n.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+function showLogin() {
+  document.getElementById('loginOverlay').classList.remove('hidden');
 }
-function fmtQty(n) {
-  if (n>=1000) return fmt(n,2);
-  if (n>=1) return fmt(n,4);
-  return fmt(n,6);
-}
-function fmtUSD(v) {
-  if (v>=1e9) return '$'+(v/1e9).toFixed(2)+'B';
-  if (v>=1e6) return '$'+(v/1e6).toFixed(2)+'M';
-  if (v>=1e3) return '$'+(v/1e3).toFixed(1)+'K';
-  return '$'+v.toFixed(0);
-}
-function pct(a,b) { return b?((a/b)*100).toFixed(1)+'%':'0%'; }
-
-/* ── Zoom control ───────────────────────────────────────── */
-function setZoom(z) {
-  currentZoom = z;
-  document.querySelectorAll('.zoom-btn').forEach(b=>{
-    b.classList.toggle('active', parseFloat(b.dataset.zoom)===z);
-  });
-  const pctStr = (z*100)+'%';
-  document.getElementById('bidPctLabel').textContent = 'BIDS -'+pctStr;
-  document.getElementById('askPctLabel').textContent = 'ASKS +'+pctStr;
-  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
+function hideLogin() {
+  document.getElementById('loginOverlay').classList.add('hidden');
 }
 
-/* ── Fetch (dual mode) ──────────────────────────────────── */
-async function load() {
-  const raw = document.getElementById('symbolInput').value.trim().toUpperCase()||'BTC';
-  const sym = raw.includes('-') ? raw : raw+'-USDT';
-  document.getElementById('symbolLabel').textContent = sym;
-  document.getElementById('fetchBtn').disabled = true;
-  document.getElementById('liveDot').className = 'dot';
-  document.getElementById('lastUpdate').textContent = 'loading…';
+async function doLogin() {
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
 
-  let d = null;
+  btn.disabled = true;
+  errEl.classList.remove('show');
 
-  // Try live API first
   try {
-    const r = await fetch(`${API_PATH}?symbol=${encodeURIComponent(raw)}&limit=100`);
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    d = await r.json();
-    DATA_MODE = 'api';
-  } catch(apiErr) {
-    // Fallback: try data.json in same directory (GitHub Pages / static mode)
-    try {
-      const r2 = await fetch('data.json');
-      if (!r2.ok) throw new Error('HTTP '+r2.status);
-      d = await r2.json();
-      DATA_MODE = 'static';
-    } catch(staticErr) {
-      document.getElementById('lastUpdate').textContent = 'No API or data.json found';
-      document.getElementById('fetchBtn').disabled = false;
-      document.getElementById('loadOverlay').style.display = 'none';
-      return;
-    }
-  }
+    const res = await fetch('/api/v1/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user, pass }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
 
-  currentData = d;
-  render(d, sym);
-  document.getElementById('fetchBtn').disabled = false;
+    jwtToken = data.token;
+    sessionStorage.setItem('jwt', jwtToken);
+    hideLogin();
+    loadAll();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.add('show');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
-/* ── Render ─────────────────────────────────────────────── */
-function render(d, sym) {
-  document.getElementById('symbolLabel').textContent = sym;
-  document.getElementById('loadOverlay').style.display = 'none';
+function doLogout() {
+  jwtToken = '';
+  sessionStorage.removeItem('jwt');
+  showLogin();
+}
 
-  if (DATA_MODE === 'static') {
-    document.getElementById('liveDot').className = 'dot stale';
-    const age = Date.now() - d.timestamp;
-    const mins = Math.floor(age / 60000);
-    document.getElementById('lastUpdate').textContent = mins < 1 ? 'snapshot: <1m ago' : `snapshot: ${mins}m ago`;
-  } else {
-    document.getElementById('liveDot').className = 'dot live';
-    document.getElementById('lastUpdate').textContent = new Date(d.timestamp).toLocaleTimeString();
-  }
-
-  const bidMap = new Map(), askMap = new Map();
-  let okCount=0, errCount=0;
-  let globalBestBid=0, globalBestAsk=Infinity;
-
-  const validResults = d.results.filter(ex=>!ex.error&&ex.spread.mid>0);
-  const mids = validResults.map(ex=>ex.spread.mid).sort((a,b)=>a-b);
-  const median = mids.length ? mids[Math.floor(mids.length/2)] : 0;
-  const TOLERANCE = 0.20;
-  const clean = validResults.filter(ex=>median===0||Math.abs(ex.spread.mid-median)/median<=TOLERANCE);
-  const filtered = validResults.filter(ex=>median>0&&Math.abs(ex.spread.mid-median)/median>TOLERANCE);
-  errCount = d.results.length - clean.length;
-
-  for (const ex of clean) {
-    okCount++;
-    if (ex.spread.best_bid>globalBestBid) globalBestBid=ex.spread.best_bid;
-    if (ex.spread.best_ask<globalBestAsk) globalBestAsk=ex.spread.best_ask;
-    for (const pt of (ex.data||[])) {
-      if (pt.bidCum!=null) { const k=pt.price; bidMap.set(k,(bidMap.get(k)||0)+pt.qty); }
-      else if (pt.askCum!=null) { const k=pt.price; askMap.set(k,(askMap.get(k)||0)+pt.qty); }
-    }
-  }
-
-  const bids = [...bidMap.entries()].sort((a,b)=>b[0]-a[0]).slice(0,200);
-  const asks = [...askMap.entries()].sort((a,b)=>a[0]-b[0]).slice(0,200);
-
-  // Crossed book detection
-  const isCrossed = globalBestBid > globalBestAsk && globalBestAsk < Infinity;
-  const mid = isCrossed ? median : (globalBestBid+globalBestAsk)/2;
-  const spread = globalBestAsk-globalBestBid;
-
-  document.getElementById('crossedBadge').style.display = isCrossed ? 'inline-block' : 'none';
-  document.getElementById('priceVal').textContent = fmt(mid,2);
-  document.getElementById('hBid').textContent = fmt(globalBestBid,2);
-  document.getElementById('hAsk').textContent = fmt(globalBestAsk,2);
-  document.getElementById('hSpread').textContent = fmt(spread,2);
-  document.getElementById('hSpread').classList.toggle('negative', spread<0);
-  document.getElementById('hMid').textContent = fmt(mid,2);
-  document.getElementById('hEx').textContent = `${okCount}/${okCount+errCount}`;
-
-  // Build cumulative for tables
-  const bidCum=[], askCum=[];
-  let c=0; for(const[p,q]of bids){c+=q;bidCum.push([p,q,c]);}
-  c=0; for(const[p,q]of asks){c+=q;askCum.push([p,q,c]);}
-  const maxCum=Math.max(bidCum.length?bidCum[bidCum.length-1][2]:0,askCum.length?askCum[askCum.length-1][2]:0);
-
-  document.getElementById('bidCount').textContent=`${bids.length} levels`;
-  document.getElementById('askCount').textContent=`${asks.length} levels`;
-  document.getElementById('bidsBody').innerHTML=bidCum.map(([p,q,cum])=>`
-    <tr class="bid-row" style="--depth:${pct(cum,maxCum)}">
-      <td class="price">${fmt(p,2)}</td><td class="size">${fmtQty(q)}</td><td class="cum">${fmtQty(cum)}</td>
-    </tr>`).join('');
-  document.getElementById('asksBody').innerHTML=askCum.map(([p,q,cum])=>`
-    <tr class="ask-row" style="--depth:${pct(cum,maxCum)}">
-      <td class="price">${fmt(p,2)}</td><td class="size">${fmtQty(q)}</td><td class="cum">${fmtQty(cum)}</td>
-    </tr>`).join('');
-
-  // Exchange breakdown
-  const filteredSet=new Set(filtered.map(e=>e.exchange));
-  const sorted=[...d.results].sort((a,b)=>{
-    if(a.error&&!b.error)return 1; if(!a.error&&b.error)return -1;
-    if(filteredSet.has(a.exchange)&&!filteredSet.has(b.exchange))return 1;
-    if(!filteredSet.has(a.exchange)&&filteredSet.has(b.exchange))return -1;
-    return(a.spread.spread||999)-(b.spread.spread||999);
+// ============================================================
+// Authenticated fetch wrapper
+// ============================================================
+async function fetchAuth(url) {
+  const res = await fetch(url, {
+    headers: { 'Authorization': 'Bearer ' + jwtToken },
   });
-  const apiErrors=d.results.filter(ex=>ex.error).length;
-  document.getElementById('exSummary').textContent=`${okCount} ok · ${apiErrors} api errors · ${filtered.length} outliers · ${d.results.length} total`;
-  document.getElementById('exGrid').innerHTML=sorted.map(ex=>{
-    if(ex.error)return`<div class="ex-row error"><span class="ex-name">${ex.exchange}</span><span class="ex-err">${ex.error}</span></div>`;
-    const isOutlier=filteredSet.has(ex.exchange);
-    const devPct=median>0?((ex.spread.mid/median-1)*100).toFixed(1):'0.0';
-    return`<div class="ex-row${isOutlier?' error':''}">
-      <span class="ex-name">${ex.exchange}${isOutlier?' ⚠':''}</span>
-      <span class="ex-mid" style="${isOutlier?'color:var(--ask)':''}">${fmt(ex.spread.mid,2)}</span>
-      <span class="ex-spread">${isOutlier?devPct+'% off':'±'+fmt(ex.spread.spread,4)}</span>
-      <span class="ex-levels">${ex.levels.bids}/${ex.levels.asks}</span>
-    </div>`;
-  }).join('');
-
-  // Store raw data and draw chart
-  _rawBids = bids;
-  _rawAsks = asks;
-  _mid = mid;
-  _bestBid = globalBestBid;
-  _bestAsk = globalBestAsk;
-  drawDepth(bids, asks, mid, globalBestBid, globalBestAsk);
+  if (res.status === 401) {
+    // Token expired or invalid — force re-login
+    doLogout();
+    throw new Error('Session expired');
+  }
+  if (res.status === 429) {
+    throw new Error('Rate limited — slow down');
+  }
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
 }
 
-/* ── Depth Chart (fixed for crossed books) ──────────────── */
-function drawDepth(rawBids, rawAsks, mid, bestBid, bestAsk) {
-  const canvas = document.getElementById('depthCanvas');
-  const dpr = window.devicePixelRatio||1;
-  const W = canvas.offsetWidth, H = canvas.offsetHeight;
-  if (W===0||H===0) return;
-  canvas.width = W*dpr; canvas.height = H*dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+// ============================================================
+// Dashboard State
+// ============================================================
+const $ = id => document.getElementById(id);
+let currentSymbol = 'BTC';
+let currentGecko = 'bitcoin';
+let currentDays = 7;
+let priceChartInstance = null;
+let depthChart = null;
+let dominanceChart = null;
 
-  const PAD = { top:32, right:76, bottom:36, left:76 };
-  const cw = W-PAD.left-PAD.right;
-  const ch = H-PAD.top-PAD.bottom;
-  if (cw<=0||ch<=0) return;
+// ============================================================
+// Init
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  // Login handlers
+  $('loginBtn').addEventListener('click', doLogin);
+  $('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  $('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginPass').focus(); });
+  $('logoutBtn').addEventListener('click', doLogout);
 
-  const range = mid * currentZoom;
-  const minP = mid - range, maxP = mid + range;
-
-  // Filter & build USD cumulative arrays
-  // Always split at mid: bids = levels <= mid, asks = levels >= mid
-  // This prevents crossed-book levels from bleeding into the wrong side
-  const isCrossed = bestBid > bestAsk;
-
-  const bids = rawBids
-    .filter(([p]) => p >= minP && p <= maxP)
-    .map(([p,q])=>({ p, q, usdVal: q*p }));
-
-  const asks = rawAsks
-    .filter(([p]) => p >= minP && p <= maxP)
-    .map(([p,q])=>({ p, q, usdVal: q*p }));
-
-  // Build cumulative USD
-  let cum=0;
-  bids.forEach(b=>{ cum+=b.usdVal; b.cumUSD=cum; });
-  cum=0;
-  asks.forEach(a=>{ cum+=a.usdVal; a.cumUSD=cum; });
-
-  const bidTotal = bids.length ? bids[bids.length-1].cumUSD : 0;
-  const askTotal = asks.length ? asks[asks.length-1].cumUSD : 0;
-  const maxUSD = Math.max(bidTotal, askTotal);
-
-  document.getElementById('bidUSDTotal').textContent = fmtUSD(bidTotal);
-  document.getElementById('askUSDTotal').textContent = fmtUSD(askTotal);
-
-  if (maxUSD===0) return;
-
-  function px(price) { return PAD.left + ((price-minP)/(maxP-minP))*cw; }
-  function py(usd)   { return PAD.top + ch - (usd/maxUSD)*ch; }
-
-  canvas._chartParams = { PAD, cw, ch, minP, maxP, maxUSD, bids, asks, mid };
-
-  ctx.clearRect(0,0,W,H);
-
-  /* ── Background ─── */
-  ctx.fillStyle = '#080b0f';
-  ctx.fillRect(0,0,W,H);
-
-  /* ── Grid lines ─── */
-  const gridCount = 4;
-  ctx.font = '10px IBM Plex Mono, monospace';
-  for (let i=0; i<=gridCount; i++) {
-    const y = PAD.top + (ch/gridCount)*i;
-    const usdVal = maxUSD*(gridCount-i)/gridCount;
-    ctx.strokeStyle = 'rgba(30,39,48,0.9)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2,4]);
-    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cw,y); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(0,230,118,0.5)';
-    ctx.textAlign = 'right';
-    ctx.fillText(fmtUSD(usdVal), PAD.left-6, y+3);
-    ctx.fillStyle = 'rgba(255,61,90,0.5)';
-    ctx.textAlign = 'left';
-    ctx.fillText(fmtUSD(usdVal), PAD.left+cw+6, y+3);
+  // Check existing session
+  if (isLoggedIn()) {
+    hideLogin();
+    loadAll();
+  } else {
+    showLogin();
   }
 
-  /* ── Histogram bars ─── */
-  if (bids.length > 1) {
-    for (let i=0; i<bids.length; i++) {
-      const b = bids[i];
-      const x = px(b.p);
-      const barH = (b.usdVal/maxUSD)*ch;
-      const nextP = i+1 < bids.length ? bids[i+1].p : minP;
-      const barW = Math.max(1, Math.abs(px(b.p)-px(nextP))-1);
-      ctx.fillStyle = 'rgba(0,230,118,0.15)';
-      ctx.fillRect(x-barW, PAD.top+ch-barH, barW, barH);
-    }
-  }
-  if (asks.length > 1) {
-    for (let i=0; i<asks.length; i++) {
-      const a = asks[i];
-      const x = px(a.p);
-      const barH = (a.usdVal/maxUSD)*ch;
-      const nextP = i+1 < asks.length ? asks[i+1].p : maxP;
-      const barW = Math.max(1, Math.abs(px(nextP)-px(a.p))-1);
-      ctx.fillStyle = 'rgba(255,61,90,0.15)';
-      ctx.fillRect(x, PAD.top+ch-barH, barW, barH);
-    }
-  }
+  initCoinSelector();
+  initTimeButtons();
+  setInterval(() => { if (isLoggedIn()) loadAll(); }, 30000);
+});
 
-  /* ── Staircase fill + line ─── */
-  // KEY FIX: Always anchor both sides at `mid` so they never overlap visually.
-  // In a crossed book, levels between bestAsk and bestBid exist on both sides
-  // but the chart still draws cleanly from center outward.
-  function drawStaircase(points, isBid) {
-    if (!points.length) return;
-    const [R,G,B] = isBid ? [0,230,118] : [255,61,90];
-
-    // Anchor at mid — both sides start from center
-    const anchor = mid;
-    const stepPath = new Path2D();
-    stepPath.moveTo(px(anchor), py(0));
-
-    // Flat line from anchor to the first actual level
-    stepPath.lineTo(px(points[0].p), py(0));
-
-    // Step through levels
-    for (let i=0; i<points.length; i++) {
-      const prevCum = i===0 ? 0 : points[i-1].cumUSD;
-      stepPath.lineTo(px(points[i].p), py(prevCum));   // horizontal to this price
-      stepPath.lineTo(px(points[i].p), py(points[i].cumUSD)); // vertical step up
-    }
-
-    // Close fill path
-    const fillPath = new Path2D(stepPath);
-    fillPath.lineTo(px(points[points.length-1].p), py(0));
-    fillPath.lineTo(px(anchor), py(0));
-    fillPath.closePath();
-
-    const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top+ch);
-    grad.addColorStop(0, `rgba(${R},${G},${B},0.22)`);
-    grad.addColorStop(0.5, `rgba(${R},${G},${B},0.10)`);
-    grad.addColorStop(1, `rgba(${R},${G},${B},0.02)`);
-    ctx.fillStyle = grad;
-    ctx.fill(fillPath);
-
-    // Stroke the step line
-    ctx.strokeStyle = `rgba(${R},${G},${B},0.85)`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke(stepPath);
-  }
-
-  drawStaircase(bids, true);
-  drawStaircase(asks, false);
-
-  /* ── Crossed region shading ─── */
-  if (isCrossed) {
-    const x1 = Math.max(px(bestAsk), PAD.left);
-    const x2 = Math.min(px(bestBid), PAD.left+cw);
-    if (x2 > x1) {
-      ctx.fillStyle = 'rgba(240,165,0,0.06)';
-      ctx.fillRect(x1, PAD.top, x2-x1, ch);
-
-      // Crossed label
-      ctx.fillStyle = 'rgba(240,165,0,0.6)';
-      ctx.font = '600 9px IBM Plex Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('CROSSED', (x1+x2)/2, PAD.top+ch-6);
-    }
-  }
-
-  /* ── Mid line ─── */
-  const midX = px(mid);
-  ctx.beginPath();
-  ctx.setLineDash([3,5]);
-  ctx.strokeStyle = 'rgba(61,142,240,0.6)';
-  ctx.lineWidth = 1;
-  ctx.moveTo(midX, PAD.top);
-  ctx.lineTo(midX, PAD.top+ch);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  ctx.fillStyle = 'rgba(61,142,240,1)';
-  ctx.font = '600 11px IBM Plex Mono, monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(fmt(mid,0), midX, PAD.top-8);
-
-  /* ── Best bid/ask markers ─── */
-  if (bestBid > 0 && bestBid >= minP && bestBid <= maxP) {
-    const bx = px(bestBid);
-    ctx.beginPath();
-    ctx.setLineDash([2,3]);
-    ctx.strokeStyle = 'rgba(0,230,118,0.3)';
-    ctx.lineWidth = 1;
-    ctx.moveTo(bx, PAD.top);
-    ctx.lineTo(bx, PAD.top+ch);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  if (bestAsk < Infinity && bestAsk >= minP && bestAsk <= maxP) {
-    const ax = px(bestAsk);
-    ctx.beginPath();
-    ctx.setLineDash([2,3]);
-    ctx.strokeStyle = 'rgba(255,61,90,0.3)';
-    ctx.lineWidth = 1;
-    ctx.moveTo(ax, PAD.top);
-    ctx.lineTo(ax, PAD.top+ch);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  /* ── X-axis price labels ─── */
-  ctx.fillStyle = 'rgba(74,85,104,0.8)';
-  ctx.font = '10px IBM Plex Mono, monospace';
-  ctx.textAlign = 'center';
-  const xSteps = 8;
-  for (let i=0; i<=xSteps; i++) {
-    const price = minP + (range*2/xSteps)*i;
-    const x = px(price);
-    ctx.strokeStyle='rgba(30,39,48,0.6)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(x,PAD.top+ch); ctx.lineTo(x,PAD.top+ch+4); ctx.stroke();
-    ctx.fillText(fmt(price,0), x, PAD.top+ch+16);
-  }
-
-  /* ── Axis borders ─── */
-  ctx.strokeStyle = 'rgba(30,39,48,0.6)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(PAD.left,PAD.top); ctx.lineTo(PAD.left,PAD.top+ch);
-  ctx.moveTo(PAD.left+cw,PAD.top); ctx.lineTo(PAD.left+cw,PAD.top+ch);
-  ctx.moveTo(PAD.left,PAD.top+ch); ctx.lineTo(PAD.left+cw,PAD.top+ch);
-  ctx.stroke();
+function initCoinSelector() {
+  $('coinSelect').addEventListener('change', () => {
+    const opt = $('coinSelect').options[$('coinSelect').selectedIndex];
+    currentSymbol = opt.value;
+    currentGecko = opt.dataset.gecko;
+    if (isLoggedIn()) loadAll();
+  });
 }
 
-/* ── Tooltip ────────────────────────────────────────────── */
-const canvasEl = document.getElementById('depthCanvas');
-const tooltip = document.getElementById('depthTooltip');
+function initTimeButtons() {
+  $('timeButtons').addEventListener('click', e => {
+    if (!e.target.classList.contains('time-btn')) return;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    currentDays = parseInt(e.target.dataset.days);
+    const labels = {1:'1 Day',7:'7 Days',30:'1 Month',90:'3 Months',365:'1 Year'};
+    $('priceChartSub').textContent = 'USD · ' + (labels[currentDays] || currentDays + ' Days');
+    if (isLoggedIn()) loadPriceChart();
+  });
+}
 
-canvasEl.addEventListener('mousemove', e => {
-  const params = canvasEl._chartParams;
-  if (!params) return;
-  const {PAD,cw,ch,minP,maxP,maxUSD,bids,asks,mid} = params;
-  const rect = canvasEl.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
+function loadAll() {
+  setStatus('loading');
+  Promise.all([loadPriceChart(), loadDepthChart(), loadDominanceChart()])
+    .then(() => setStatus('ok'))
+    .catch(() => setStatus('error'));
+}
 
-  if (mouseX<PAD.left||mouseX>PAD.left+cw||mouseY<PAD.top||mouseY>PAD.top+ch) {
-    tooltip.style.display='none'; return;
+function setStatus(s) {
+  const dot = $('statusDot'), txt = $('statusText');
+  if (s === 'ok')           { dot.style.background = 'var(--green)';  txt.textContent = 'Live'; }
+  else if (s === 'loading') { dot.style.background = 'var(--yellow)'; txt.textContent = 'Refreshing…'; }
+  else                      { dot.style.background = 'var(--red)';    txt.textContent = 'Error'; }
+}
+
+// ============================================================
+// Price Chart
+// ============================================================
+async function loadPriceChart() {
+  try {
+    const data = await fetchAuth('/api/v1/price?symbol=' + currentGecko + '&days=' + currentDays);
+    if (!data.prices) throw new Error('No price data');
+
+    const prices = data.prices.map(([t, p]) => ({ time: Math.floor(t / 1000), value: p }));
+
+    if (priceChartInstance) { priceChartInstance.remove(); priceChartInstance = null; }
+    const container = $('priceChart');
+    container.innerHTML = '';
+
+    priceChartInstance = LightweightCharts.createChart(container, {
+      width: container.clientWidth, height: 360,
+      layout: { background: { type: 'solid', color: '#1e1f26' }, textColor: '#8a8d98', fontSize: 11 },
+      grid: { vertLines: { color: '#2a2b3322' }, horzLines: { color: '#2a2b3322' } },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+        vertLine: { color: '#555862', width: 1, style: 2 },
+        horzLine: { color: '#555862', width: 1, style: 2 },
+      },
+      rightPriceScale: { borderColor: '#2a2b33' },
+      timeScale: { borderColor: '#2a2b33', timeVisible: currentDays <= 7 },
+    });
+
+    const isUp = prices.length > 1 && prices[prices.length - 1].value >= prices[0].value;
+    const lineColor = isUp ? '#21c45d' : '#ef4444';
+
+    const series = priceChartInstance.addAreaSeries({
+      lineColor, lineWidth: 2,
+      topColor: isUp ? 'rgba(33,196,93,0.25)' : 'rgba(239,68,68,0.25)',
+      bottomColor: isUp ? 'rgba(33,196,93,0.01)' : 'rgba(239,68,68,0.01)',
+      priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+    });
+    series.setData(prices);
+    priceChartInstance.timeScale().fitContent();
+
+    const last = prices[prices.length - 1].value;
+    const first = prices[0].value;
+    const change = (last - first) / first * 100;
+    $('currentPrice').textContent = '$' + last.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const el = $('priceChange');
+    el.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+    el.className = 'price-change ' + (change >= 0 ? 'up' : 'down');
+
+    new ResizeObserver(() => {
+      if (priceChartInstance) priceChartInstance.applyOptions({ width: container.clientWidth });
+    }).observe(container);
+  } catch (err) { console.error('Price chart error:', err); }
+}
+
+// ============================================================
+// Depth Chart
+// ============================================================
+async function loadDepthChart() {
+  try {
+    const data = await fetchAuth('/api/v1/book?symbol=' + currentSymbol + '-USDT&limit=50');
+    if (!data.results || data.results.length === 0) throw new Error('No depth data');
+
+    let allBids = [], allAsks = [], totalBidQty = 0, totalAskQty = 0, spreadSum = 0, exCount = 0;
+
+    data.results.forEach(ex => {
+      if (ex.error) return;
+      exCount++;
+      spreadSum += ex.spread.spread;
+      ex.data.forEach(pt => {
+        if (pt.bidCum != null) { allBids.push({ price: pt.price, qty: pt.qty }); totalBidQty += pt.qty; }
+        if (pt.askCum != null) { allAsks.push({ price: pt.price, qty: pt.qty }); totalAskQty += pt.qty; }
+      });
+    });
+
+    allBids.sort((a, b) => b.price - a.price);
+    allAsks.sort((a, b) => a.price - b.price);
+
+    let cum = 0;
+    const bidData = allBids.map(b => { cum += b.qty; return { x: b.price, y: cum }; }).reverse();
+    cum = 0;
+    const askData = allAsks.map(a => { cum += a.qty; return { x: a.price, y: cum }; });
+
+    $('avgSpread').textContent = exCount > 0 ? '$' + (spreadSum / exCount).toFixed(2) : '—';
+    $('exchangeCount').textContent = exCount;
+    $('totalBidDepth').textContent = totalBidQty.toFixed(2) + ' ' + currentSymbol;
+    $('totalAskDepth').textContent = totalAskQty.toFixed(2) + ' ' + currentSymbol;
+
+    $('exchangeChips').innerHTML = data.results.filter(ex => !ex.error).slice(0, 15)
+      .map(ex => '<div class="ex-chip"><span class="dot"></span>' + ex.exchange + ' <span class="spread">$' + ex.spread.spread.toFixed(2) + '</span></div>').join('');
+
+    const ctx = $('depthCanvas').getContext('2d');
+    if (depthChart) depthChart.destroy();
+    depthChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [
+          { label: 'Bids', data: bidData, borderColor: '#21c45d', backgroundColor: 'rgba(33,196,93,0.08)', fill: true, pointRadius: 0, borderWidth: 1.5, tension: 0.1 },
+          { label: 'Asks', data: askData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, pointRadius: 0, borderWidth: 1.5, tension: 0.1 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+        interaction: { mode: 'nearest', intersect: false },
+        plugins: {
+          legend: { display: true, position: 'top', align: 'end', labels: { color: '#8a8d98', boxWidth: 12, padding: 16, font: { size: 11 } } },
+          tooltip: {
+            backgroundColor: '#23242b', borderColor: '#2a2b33', borderWidth: 1,
+            titleColor: '#e8e9ed', bodyColor: '#8a8d98', padding: 10,
+            callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(4) + ' ' + currentSymbol + ' @ $' + ctx.parsed.x.toLocaleString() },
+          },
+        },
+        scales: {
+          x: { type: 'linear', title: { display: true, text: 'Price (USD)', color: '#555862', font: { size: 11 } }, ticks: { color: '#555862', font: { size: 10 }, callback: v => '$' + v.toLocaleString() }, grid: { color: '#2a2b3318' }, border: { color: '#2a2b33' } },
+          y: { title: { display: true, text: 'Cumulative (' + currentSymbol + ')', color: '#555862', font: { size: 11 } }, ticks: { color: '#555862', font: { size: 10 }, callback: v => v.toFixed(1) }, grid: { color: '#2a2b3318' }, border: { color: '#2a2b33' } },
+        },
+      },
+    });
+  } catch (err) {
+    console.error('Depth chart error:', err);
+    $('depthSub').textContent = 'Error loading depth data';
   }
+}
 
-  const price = minP + ((mouseX-PAD.left)/cw)*(maxP-minP);
+// ============================================================
+// Dominance Chart
+// ============================================================
+async function loadDominanceChart() {
+  try {
+    const data = await fetchAuth('/api/v1/dominance');
+    if (!data.data) throw new Error('No dominance data');
 
-  let bidVal=0, bidTot=0;
-  for (const b of bids) {
-    if (b.p>=price) { bidVal=b.usdVal; bidTot=b.cumUSD; }
-    else break;
-  }
+    const mp = data.data.market_cap_percentage;
+    const entries = Object.entries(mp).sort((a, b) => b[1] - a[1]);
+    const top = entries.slice(0, 8);
+    const otherPct = entries.slice(8).reduce((s, [, v]) => s + v, 0);
 
-  let askVal=0, askTot=0;
-  for (const a of asks) {
-    if (a.p<=price) { askVal=a.usdVal; askTot=a.cumUSD; }
-    else break;
-  }
+    const labels = top.map(([k]) => k.toUpperCase());
+    const values = top.map(([, v]) => v);
+    if (otherPct > 0) { labels.push('OTHER'); values.push(otherPct); }
 
-  document.getElementById('ttPrice').textContent = fmt(price,2);
-  document.getElementById('ttBidVal').textContent = fmtUSD(bidVal);
-  document.getElementById('ttBidTot').textContent = fmtUSD(bidTot);
-  document.getElementById('ttAskVal').textContent = fmtUSD(askVal);
-  document.getElementById('ttAskTot').textContent = fmtUSD(askTot);
+    const colors = ['#f7931a','#627eea','#21c45d','#3b82f6','#eab308','#a855f7','#06b6d4','#ec4899','#555862'];
 
-  // Crosshair
-  drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
-  const dpr = window.devicePixelRatio||1;
-  const ctx2 = canvasEl.getContext('2d');
-  ctx2.scale(dpr,dpr);
-  ctx2.strokeStyle='rgba(255,255,255,0.15)';
-  ctx2.lineWidth=1; ctx2.setLineDash([3,4]);
-  ctx2.beginPath();
-  ctx2.moveTo(mouseX,PAD.top); ctx2.lineTo(mouseX,PAD.top+ch);
-  ctx2.moveTo(PAD.left,mouseY); ctx2.lineTo(PAD.left+cw,mouseY);
-  ctx2.stroke(); ctx2.setLineDash([]);
-
-  const tx = e.clientX + 16;
-  const ty = Math.min(e.clientY - 10, window.innerHeight - 170);
-  tooltip.style.left = (tx+180>window.innerWidth ? e.clientX-220 : tx)+'px';
-  tooltip.style.top = ty+'px';
-  tooltip.style.display = 'block';
-});
-
-canvasEl.addEventListener('mouseleave', () => {
-  tooltip.style.display = 'none';
-  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
-});
-
-/* ── Resize ─────────────────────────────────────────────── */
-window.addEventListener('resize', () => {
-  if (_rawBids.length) drawDepth(_rawBids, _rawAsks, _mid, _bestBid, _bestAsk);
-});
-
-document.getElementById('symbolInput').addEventListener('keydown', e=>{
-  if(e.key==='Enter') load();
-});
-
-load();
+    const ctx = $('dominanceCanvas').getContext('2d');
+    if (dominanceChart) dominanceChart.destroy();
+    dominanceChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels, datasets: [{
+          data: values,
+          backgroundColor: colors.slice(0, labels.length),
+          borderColor: '#1e1f26', borderWidth: 2,
+          hoverBorderColor: '#e8e9ed', hoverBorderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '55%',
+        animation: { duration: 500 },
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              color: '#8a8d98', padding: 12, font: { size: 11 }, usePointStyle: true, pointStyleWidth: 10,
+              generateLabels: chart => {
+                const ds = chart.data.datasets[0];
+                return chart.data.labels.map((l, i) => ({ text: l + '  ' + ds.data[i].toFixed(1) + '%', fillStyle: ds.backgroundColor[i], strokeStyle: 'transparent', pointStyle: 'rectRounded', hidden: false, index: i }));
+              },
+            },
+          },
+          tooltip: {
+            backgroundColor: '#23242b', borderColor: '#2a2b33', borderWidth: 1,
+            titleColor: '#e8e9ed', bodyColor: '#8a8d98', padding: 10,
+            callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed.toFixed(2) + '%' },
+          },
+        },
+      },
+    });
+  } catch (err) { console.error('Dominance chart error:', err); }
+}
 </script>
 </body>
 </html>

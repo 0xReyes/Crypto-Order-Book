@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - API_USER=${API_USER:-demo}
+      - API_PASS=${API_PASS:-demo}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"

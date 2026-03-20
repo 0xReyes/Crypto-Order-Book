@@ -1,5 +1,5 @@
-.DS_Store
-.idea/
-.vscode/
+aggregator
+*.exe
 *.log
-bin/
+data.json
+.env
