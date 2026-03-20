@@ -1,94 +1,13 @@
-name: Run live server
-
-on:
-  workflow_dispatch:
-
-jobs:
-  serve:
-    runs-on: ubuntu-latest
-    timeout-minutes: 350
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Download dependencies
-        run: go mod tidy
-
-      - name: Build server
-        run: go build -o aggregator .
-
-      - name: Start server in background
-        env:
-          API_USER: demo
-          API_PASS: demo
-          JWT_SECRET: github-actions-tunnel-secret
-        run: |
-          ./aggregator &
-          for i in $(seq 1 10); do
-            curl -sf "http://localhost:8080/api/v1/health" > /dev/null && break
-            echo "Waiting for server... ($i)"
-            sleep 2
-          done
-          echo "✅ Server is up"
-
-      - name: Install cloudflared
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/download/2025.2.1/cloudflared-linux-amd64 \
-            -o /usr/local/bin/cloudflared
-          chmod +x /usr/local/bin/cloudflared
-          cloudflared --version
-
-      - name: Open Cloudflare tunnel
-        run: |
-          MAX_ATTEMPTS=5
-          ATTEMPT=0
-          URL=""
-
-          while [ -z "$URL" ] && [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            ATTEMPT=$((ATTEMPT + 1))
-            echo "--- Tunnel attempt $ATTEMPT/$MAX_ATTEMPTS ---"
-
-            pkill -f cloudflared || true
-            sleep 2
-            > /tmp/cf.log
-
-            cloudflared tunnel --url http://localhost:8080 --no-autoupdate 2>&1 | tee /tmp/cf.log &
-            CF_PID=$!
-
-            for i in $(seq 1 20); do
-              URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf.log | head -1)
-              [ -n "$URL" ] && break
-
-              if grep -q 'failed to unmarshal\|ERR.*QuickTunnel' /tmp/cf.log; then
-                echo "⚠️  Tunnel API error — retrying in 10s..."
-                sleep 10
-                break
-              fi
-
-              sleep 1
-            done
-          done
-
-          if [ -z "$URL" ]; then
-            echo "❌ Could not establish tunnel after $MAX_ATTEMPTS attempts."
-            cat /tmp/cf.log
-            exit 1
-          fi
-
-          echo ""
-          echo "============================================"
-          echo "  🌐 Dashboard:   $URL"
-          echo "  🔐 Login:       demo / demo"
-          echo "  📖 Order book:  $URL/api/v1/book?symbol=BTC-USDT"
-          echo "  💰 Price:       $URL/api/v1/price?symbol=bitcoin&days=7"
-          echo "  📊 Dominance:   $URL/api/v1/dominance"
-          echo "  (API routes require Bearer token from /api/v1/login)"
-          echo "============================================"
-
-          wait $CF_PID
+apiVersion: v1
+kind: Service
+metadata:
+  name: crypto-dashboard
+  namespace: crypto-dashboard
+spec:
+  selector:
+    app: crypto-dashboard
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP
