@@ -31,12 +31,13 @@ jobs:
         uses: helm/kind-action@v1.10.0
         with:
           version: v0.24.0
-          config: .github/kind-config.yaml   # ← points to your new file
-          wait: 60s
+          config: .github/kind-config.yaml
+          cluster_name: chart-testing   # your custom name
+          wait: 120s
           verbosity: 1
 
       - name: Load image into kind
-        run: kind load docker-image crypto-dashboard:ci
+        run: kind load docker-image crypto-dashboard:ci --name chart-testing
 
       - name: Deploy secrets (for testing)
         run: |
