@@ -1,19 +1,19 @@
-name: CI + Kind Deploy Test
+name: CI + Kind Deploy Test (with Cloudflare tunnel)
 
 on:
   push:
     branches: [main, test, test2]
   pull_request:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:        # allows manual trigger for ad‑hoc testing
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # opt into Node.js 24
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test-and-deploy-kind:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 350      # free tier max (6h)
 
     steps:
       - name: Checkout
@@ -63,17 +63,16 @@ jobs:
 
       - name: Test token authentication
         run: |
-          set -e  # exit on any error
-
-          # Port‑forward the service to localhost
+          set -e
+          echo "→ Port-forwarding service..."
           kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80 &
           PF_PID=$!
-          sleep 3  # give it a moment to establish
+          sleep 3
 
-          # Health check (optional, but good)
+          echo "→ Health check..."
           curl --fail --retry 5 --retry-connrefused http://localhost:8080/api/v1/health
 
-          # Get JWT token
+          echo "→ Obtaining JWT token..."
           TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/login \
             -H "Content-Type: application/json" \
             -d '{"user":"testadmin","pass":"testpass123"}' | jq -r .token)
@@ -84,14 +83,65 @@ jobs:
           fi
           echo "✅ Token obtained: ${TOKEN:0:20}..."
 
-          # Access protected endpoint
+          echo "→ Accessing protected endpoint..."
           curl --fail -H "Authorization: Bearer $TOKEN" \
             "http://localhost:8080/api/v1/book?symbol=BTC-USDT&limit=1"
 
           echo "✅ Token authentication successful"
+          # Keep port-forward running for the tunnel
+          # (PF_PID will be used later)
 
-          # Clean up port-forward
-          kill $PF_PID
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/download/2025.2.1/cloudflared-linux-amd64 \
+            -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Expose via Cloudflare tunnel
+        run: |
+          # Port-forward is already running from previous step
+          # (We'll reuse it – ensure it's still up)
+          if ! kill -0 $PF_PID 2>/dev/null; then
+            echo "Port-forward died, restarting..."
+            kubectl port-forward svc/crypto-dashboard -n crypto-dashboard 8080:80 &
+            PF_PID=$!
+            sleep 3
+          fi
+
+          echo "→ Starting cloudflared tunnel to http://localhost:8080"
+          cloudflared tunnel --url http://localhost:8080 --no-autoupdate 2>&1 | tee /tmp/cf.log &
+          CF_PID=$!
+
+          # Wait for the tunnel URL to appear
+          URL=""
+          for i in $(seq 1 30); do
+            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf.log | head -1)
+            if [ -n "$URL" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "$URL" ]; then
+            echo "❌ Failed to get tunnel URL"
+            cat /tmp/cf.log
+            exit 1
+          fi
+
+          echo ""
+          echo "============================================"
+          echo "  🌐 Public URL: $URL"
+          echo "  🔑 Login:      testadmin / testpass123"
+          echo "  📖 Order book: $URL/api/v1/book?symbol=BTC-USDT&limit=50"
+          echo "  🔐 Protected endpoint example (with token):"
+          echo "     curl -H 'Authorization: Bearer <token>' $URL/api/v1/book?symbol=BTC-USDT&limit=1"
+          echo ""
+          echo "  ⏳ Tunnel is active. Cancel this job in the GitHub UI to stop."
+          echo "============================================"
+
+          # Keep the job alive until manually stopped
+          wait $CF_PID
 
       - name: Show pod status & logs (on failure)
         if: failure()
