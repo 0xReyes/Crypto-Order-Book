@@ -50,7 +50,7 @@ if [ "$MODE" = "docker" ]; then
     --cpus=0.5 \
     -e PORT=8080 \
     -e JWT_SECRET="${JWT_SECRET:-$(openssl rand -base64 48)}" \
-    -e API_USER="${API_USER:-testadmin}" \
+    -e API_USER="${API_USER:-demo}" \
     -e API_PASS="${API_PASS:-$(openssl rand -base64 24)}" \
     "$IMAGE_NAME:$IMAGE_TAG"
 
@@ -82,7 +82,7 @@ if [ "$MODE" = "bare" ]; then
   echo "   (Ctrl+C to stop)"
   echo ""
   JWT_SECRET="${JWT_SECRET:-$(openssl rand -base64 48)}" \
-    API_USER="${API_USER:-testadmin}" \
+    API_USER="${API_USER:-demo}" \
     API_PASS="${API_PASS:-$(openssl rand -base64 24)}" \
     ./aggregator
   exit 0

@@ -19,6 +19,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ---------------------------------------------------
+      # ORDERBOOK UI (REACT) BUILD STEPS
+      # ---------------------------------------------------
+      - name: Set up Node.js for Orderbook UI
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Update this if your app requires a different Node version
+
+      - name: Install and Build Orderbook UI
+        working-directory: ./orderbook-ui
+        run: |
+          echo "Installing React app dependencies..."
+          npm install
+          echo "Building React app..."
+          npm run build
+      # ---------------------------------------------------
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -28,6 +45,7 @@ jobs:
         run: go mod tidy && go build -o aggregator .
 
       - name: Build Docker image
+        # If your Dockerfile copies the React build folder, it will now be available!
         run: docker build -t crypto-dashboard:ci .
 
       - name: Set up kind cluster
@@ -54,8 +72,8 @@ jobs:
         env:
           CI: true
           JWT_SECRET: "kind-test-secret-1234567890"
-          API_USER: "testadmin"
-          API_PASS: "testpass123"
+          API_USER: demo
+          API_PASS: demo
           TAG: ci
         run: ./deploy.sh k8s
 
@@ -115,7 +133,7 @@ jobs:
           echo "→ Obtaining JWT token..."
           TOKEN=$(curl -s -X POST "$BASE/api/v1/login" \
             -H "Content-Type: application/json" \
-            -d '{"user":"testadmin","pass":"testpass123"}' | jq -r .token)
+            -d '{"user":"demo","pass":"demo"}' | jq -r .token)
 
           if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
             echo "❌ Failed to obtain token"
@@ -174,7 +192,7 @@ jobs:
           echo ""
           echo "============================================"
           echo "  🌐 Public URL:  $URL"
-          echo "  🔑 Login:       testadmin / testpass123"
+          echo "  🔑 Login:       demo / demo"
           if [[ -n "$LB_IP" ]]; then
           echo "  ⚡ LoadBalancer: http://$LB_IP"
           fi
