@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useConnect, useAccount, useDisconnect } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DepthChart } from "@/components/DepthChart";               // your depth chart component
-import { OrderBook } from "@/components/OrderBook";                 // optional: classic order book table
+import DepthChart  from "@/components/DepthChart";               // your depth chart component
+import OrderBook  from "@/components/OrderBook";                 // optional: classic order book table
 import { useOrderBook } from "@/hooks/useOrderBook";               // 👈 import the data hook
 import PineLogo from "@/pages/PineLogo";
 

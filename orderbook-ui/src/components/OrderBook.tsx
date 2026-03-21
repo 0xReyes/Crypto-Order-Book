@@ -47,6 +47,9 @@ export default function OrderBook({ data }: OrderBookProps) {
     if (!outliers.has(a.exchange) && outliers.has(b.exchange)) return -1;
     return (a.spread.spread || 999) - (b.spread.spread || 999);
   });
+  const fmt = (value: number, decimals: number = 2) => value?.toFixed(decimals) ?? '0';
+const fmtQty = (value: number) => value?.toLocaleString() ?? '0';
+const pct = (value: number, max: number) => max > 0 ? `${(value / max) * 100}%` : '0%';
 
   return (
     <>
