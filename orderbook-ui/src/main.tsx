@@ -20,4 +20,3 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </StrictMode>
 );
-{"type":"file_not_found","message":"","details":""}
