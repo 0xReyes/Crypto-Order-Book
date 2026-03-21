@@ -31,4 +31,3 @@ const App = () => (
 );
 
 export default App;
-{"type":"file_not_found","message":"","details":""}
