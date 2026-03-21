@@ -205,7 +205,7 @@ jobs:
           echo ""
           echo "============================================"
           echo "  🌐 Public URL:  $URL"
-          echo "  🔑 Login:       testadmin / testpass123"
+          echo "  🔑 Login:       demo / demo"
           if [[ -n "$LB_IP" ]]; then
           echo "  ⚡ LoadBalancer: http://$LB_IP"
           fi
