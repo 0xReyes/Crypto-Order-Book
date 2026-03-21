@@ -8,7 +8,7 @@ FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/aggregator .
-COPY static/ ./static/
+COPY orderbook-ui/ ./orderbook-ui
 EXPOSE 8080
 ENV PORT=8080
 HEALTHCHECK --interval=15s --timeout=3s --retries=3 \
